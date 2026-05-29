@@ -14,6 +14,7 @@ export type VisitFrequency = 'weekly_1' | 'weekly_2' | 'biweekly' | 'monthly';
 export interface OnboardingInput {
   mode: Mode;
   region: string;
+  province?: string;
   area: number;
   areaUnit: AreaUnit;
   laborCount: number;
