@@ -14,15 +14,11 @@ import {
   Title,
 } from '@mantine/core';
 import { fetchShippingDashboard } from '@/lib/api/shipping';
+import { CropSearchAutocomplete } from '@/components/shipping/CropSearchAutocomplete';
 import { ShippingScoreCard } from '@/components/shipping/ShippingScoreCard';
 import { PriceForecast } from '@/components/shipping/PriceForecast';
 import { PeerFarmPattern } from '@/components/shipping/PeerFarmPattern';
-
-const CROP_OPTIONS = [
-  { value: 'tomato', label: '토마토' },
-  { value: 'sweetpotato', label: '고구마' },
-  { value: 'blueberry', label: '블루베리' },
-];
+import type { CropOption } from '@/lib/types';
 
 const REGION_OPTIONS = [
   { value: '옥천', label: '옥천' },
@@ -30,12 +26,22 @@ const REGION_OPTIONS = [
   { value: '나주', label: '나주' },
 ];
 
+const DEFAULT_CROP: CropOption = {
+  group_code: '200',
+  group_name: '채소류',
+  item_code: '225',
+  item_name: '토마토',
+  kind_code: '00',
+  kind_name: '토마토',
+  label: '토마토',
+};
+
 export default function ShippingPage() {
-  const [crop, setCrop] = useState('tomato');
+  const [crop, setCrop] = useState<CropOption>(DEFAULT_CROP);
   const [region, setRegion] = useState('옥천');
 
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['shipping', crop, region],
+    queryKey: ['shipping', crop.item_code, crop.kind_code, region],
     queryFn: () => fetchShippingDashboard(crop, region),
   });
 
@@ -49,18 +55,11 @@ export default function ShippingPage() {
                 출하 도우미
               </Text>
               <Title order={2}>
-                {data?.crop_name ?? '토마토'} · {data?.region ?? '옥천'}
+                {data?.crop_name ?? crop.label} · {data?.region ?? region}
               </Title>
             </Box>
-            <Group gap="sm">
-              <Select
-                data={CROP_OPTIONS}
-                value={crop}
-                onChange={(v) => v && setCrop(v)}
-                w={140}
-                radius="md"
-                allowDeselect={false}
-              />
+            <Group gap="sm" align="flex-end">
+              <CropSearchAutocomplete value={crop} onSelect={setCrop} />
               <Select
                 data={REGION_OPTIONS}
                 value={region}
