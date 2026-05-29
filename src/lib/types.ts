@@ -89,6 +89,18 @@ export interface TwinData {
   aiCoach: string;
 }
 
+// ───────────── KAMIS crop search ─────────────
+
+export interface CropOption {
+  group_code: string;
+  group_name: string;
+  item_code: string;
+  item_name: string;
+  kind_code: string;
+  kind_name: string;
+  label: string;
+}
+
 // ───────────── Shipping dashboard (existing) ─────────────
 
 export interface PricePoint {
