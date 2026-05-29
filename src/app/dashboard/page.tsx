@@ -6,9 +6,8 @@ import {
   Box,
   Card,
   Container,
-  Grid,
-  GridCol,
   Group,
+  SimpleGrid,
   Stack,
   Text,
   ThemeIcon,
@@ -16,6 +15,7 @@ import {
 } from '@mantine/core';
 import {
   IconArrowUpRight,
+  IconBook2,
   IconCalendarEvent,
   IconChartLine,
   IconLeaf,
@@ -27,7 +27,7 @@ type Tile = {
   desc: string;
   href: string;
   icon: ReactNode;
-  color: 'green' | 'teal' | 'lime' | 'orange';
+  color: 'green' | 'teal' | 'lime' | 'orange' | 'grape';
   meta: string;
 };
 
@@ -49,20 +49,28 @@ const TILES: Tile[] = [
     meta: '결정론적 시뮬 · 12개월',
   },
   {
+    title: '재배 정보',
+    desc: '작목 검색 → 농사로 재배 지침 · 품종·재배환경·비배관리·병해충',
+    href: '/calendar',
+    icon: <IconBook2 size={22} />,
+    color: 'grape',
+    meta: '농사로 · 작목별농업기술정보',
+  },
+  {
+    title: '영농 캘린더',
+    desc: '월별 농작업·병해충 알림 한눈에',
+    href: '/calendar',
+    icon: <IconCalendarEvent size={22} />,
+    color: 'lime',
+    meta: '농사로 데이터',
+  },
+  {
     title: '출하 도우미',
     desc: '14일 가격 예측 + 별점 + 우수농가 패턴',
     href: '/shipping',
     icon: <IconTruck size={22} />,
     color: 'orange',
     meta: 'Prophet · KAMIS 도매가',
-  },
-  {
-    title: '영농 캘린더',
-    desc: '월별 농작업·병해충 알림',
-    href: '/calendar',
-    icon: <IconCalendarEvent size={22} />,
-    color: 'lime',
-    meta: '농사로 데이터',
   },
 ];
 
@@ -87,13 +95,11 @@ export default function DashboardPage() {
             </Text>
           </Box>
 
-          <Grid gutter="lg">
+          <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 5 }} spacing="lg">
             {TILES.map((tile) => (
-              <GridCol key={tile.href} span={{ base: 12, sm: 6, md: 3 }}>
-                <TileCard tile={tile} />
-              </GridCol>
+              <TileCard key={tile.title} tile={tile} />
             ))}
-          </Grid>
+          </SimpleGrid>
 
           <Card radius="lg" p="lg" withBorder bg="white">
             <Group justify="space-between" wrap="wrap" gap="md">
