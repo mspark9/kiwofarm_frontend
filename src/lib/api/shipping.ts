@@ -1,6 +1,7 @@
 import { apiClient } from './client';
 import type {
   CropOption,
+  ForecastResponse,
   PriceTrendResponse,
   RecentPriceResponse,
   ShippingAdviceResponse,
@@ -41,6 +42,21 @@ export async function fetchRecentPrice(crop: CropOption): Promise<RecentPriceRes
 // 검색한 작물의 최근 가격추이 (KAMIS recentlyPriceTrendList)
 export async function fetchPriceTrend(crop: CropOption): Promise<PriceTrendResponse> {
   const { data } = await apiClient.get<PriceTrendResponse>('/api/v1/shipping/trend', {
+    params: {
+      category_code: crop.group_code,
+      item_code: crop.item_code,
+      kind_code: crop.kind_code,
+      item_name: crop.item_name,
+      kind_name: crop.kind_name,
+    },
+  });
+  return data;
+}
+
+// 도매가 예측 (Prophet). 첫 호출은 모델 콜드스타트로 느릴 수 있어 timeout 확대.
+export async function fetchPriceForecast(crop: CropOption): Promise<ForecastResponse> {
+  const { data } = await apiClient.get<ForecastResponse>('/api/v1/shipping/forecast', {
+    timeout: 60_000,
     params: {
       category_code: crop.group_code,
       item_code: crop.item_code,
