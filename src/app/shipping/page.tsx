@@ -21,9 +21,15 @@ import {
   IconCalendar,
   IconSparkles,
 } from '@tabler/icons-react';
-import { fetchPriceTrend, fetchRecentPrice, fetchShippingAdvice } from '@/lib/api/shipping';
+import {
+  fetchPriceForecast,
+  fetchPriceTrend,
+  fetchRecentPrice,
+  fetchShippingAdvice,
+} from '@/lib/api/shipping';
 import { CropSearchAutocomplete } from '@/components/shipping/CropSearchAutocomplete';
 import { PriceTrendChart } from '@/components/shipping/PriceTrendChart';
+import { PriceForecastChart } from '@/components/shipping/PriceForecastChart';
 import type { CropOption } from '@/lib/types';
 
 const DEFAULT_CROP: CropOption = {
@@ -65,6 +71,11 @@ export default function ShippingPage() {
   const trend = useQuery({
     queryKey: ['trend', crop.item_code, crop.kind_code],
     queryFn: () => fetchPriceTrend(crop),
+  });
+
+  const forecast = useQuery({
+    queryKey: ['forecast', crop.item_code, crop.kind_code],
+    queryFn: () => fetchPriceForecast(crop),
   });
 
   const advice = useQuery({
@@ -161,6 +172,21 @@ export default function ShippingPage() {
           {/* 최근 가격추이 */}
           {trend.data && trend.data.found && <PriceTrendChart trend={trend.data} />}
 
+          {/* 가격 예측 (Prophet) */}
+          {forecast.isLoading && (
+            <Card radius="lg" p="xl" withBorder shadow="sm">
+              <Group gap="xs">
+                <Loader size="sm" color="orange" />
+                <Text size="sm" c="dimmed">
+                  최근 90일 도매가로 예측 모델을 계산하는 중…
+                </Text>
+              </Group>
+            </Card>
+          )}
+          {forecast.data && forecast.data.found && (
+            <PriceForecastChart forecast={forecast.data} />
+          )}
+
           {/* AI 출하 조언 */}
           <Card radius="lg" p="xl" withBorder shadow="sm" bg="white">
             <Stack gap="md">
@@ -217,6 +243,9 @@ export default function ShippingPage() {
                       label="변동성"
                       value={a.volatility_pct != null ? `${a.volatility_pct.toFixed(1)}%` : '–'}
                     />
+                    {a.forecast_pct != null && (
+                      <Metric label={`${a.forecast_days ?? 7}일 후 예측`} value={pctText(a.forecast_pct)} />
+                    )}
                   </Group>
                 </>
               )}

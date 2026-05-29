@@ -176,6 +176,21 @@ export interface PriceTrendResponse {
   message?: string | null;
 }
 
+// ───────────── 가격 예측 (Prophet) ─────────────
+
+export interface ForecastResponse {
+  found: boolean;
+  crop_name: string;
+  unit?: string | null;
+  method?: string | null; // "prophet" / "linear"
+  horizon_days?: number;
+  series: PricePoint[]; // 최근 실측 + 예측 (is_forecast 로 구분)
+  forecast_last?: number | null;
+  forecast_last_low?: number | null;
+  forecast_last_high?: number | null;
+  message?: string | null;
+}
+
 // ───────────── AI 출하 조언 ─────────────
 
 export interface ShippingAdviceResponse {
@@ -191,5 +206,8 @@ export interface ShippingAdviceResponse {
   trend_pct?: number | null;
   volatility_pct?: number | null;
   direction?: string | null;
+  forecast_price?: number | null;
+  forecast_pct?: number | null;
+  forecast_days?: number | null;
   message?: string | null;
 }
