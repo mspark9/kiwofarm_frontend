@@ -14,6 +14,7 @@ export type VisitFrequency = 'weekly_1' | 'weekly_2' | 'biweekly' | 'monthly';
 export interface OnboardingInput {
   mode: Mode;
   region: string;
+  province?: string;
   area: number;
   areaUnit: AreaUnit;
   laborCount: number;
@@ -183,4 +184,60 @@ export interface ShippingDashboard {
   decision: ShippingDecision;
   price_series: PricePoint[];
   peer: PeerFarmStat;
+}
+
+// ───────────── 최근일자 도매가 (KAMIS dailyPriceByCategoryList) ─────────────
+
+export interface RecentPriceResponse {
+  found: boolean;
+  crop_name: string;
+  item_code: string;
+  product_cls?: string | null; // "도매" / "소매"
+  kind_name?: string | null;
+  rank?: string | null;
+  unit?: string | null;
+  obs_date?: string | null;
+  price?: number | null;
+  prev_price?: number | null;
+  delta_pct?: number | null;
+  message?: string | null;
+}
+
+// ───────────── 최근 가격추이 (recentlyPriceTrendList) ─────────────
+
+export interface TrendPoint {
+  label: string;
+  price: number;
+}
+
+export interface PriceTrendResponse {
+  found: boolean;
+  crop_name: string;
+  unit?: string | null;
+  rank?: string | null;
+  points: TrendPoint[];
+  latest?: number | null;
+  year_ago?: number | null;
+  normal?: number | null;
+  month_high?: number | null;
+  month_low?: number | null;
+  message?: string | null;
+}
+
+// ───────────── AI 출하 조언 ─────────────
+
+export interface ShippingAdviceResponse {
+  found: boolean;
+  crop_name: string;
+  advice: string;
+  source: string; // "ai" / "rule" / "none"
+  current_price?: number | null;
+  unit?: string | null;
+  vs_prev_pct?: number | null;
+  vs_year_ago_pct?: number | null;
+  vs_normal_pct?: number | null;
+  trend_pct?: number | null;
+  volatility_pct?: number | null;
+  direction?: string | null;
+  message?: string | null;
 }
