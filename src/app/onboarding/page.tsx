@@ -45,11 +45,7 @@ import type {
   VisitFrequency,
 } from '@/lib/types';
 import { ONBOARDING_STORAGE_KEY, PREFERRED_CROP_OPTIONS } from '@/lib/constants';
-import {
-  PROVINCE_OPTIONS,
-  getCitiesByProvince,
-  getProvinceByCity,
-} from '@/lib/regions';
+import { PROVINCE_OPTIONS, getCitiesByProvince } from '@/lib/regions';
 
 const COMMON_FEATURES = [
   'AI 작목 추천',
@@ -105,6 +101,7 @@ export default function OnboardingPage() {
     initialValues: {
       mode: 'returning',
       region: '옥천군',
+      province: '충청북도',
       area: 300,
       areaUnit: 'pyeong',
       laborCount: 2,
@@ -351,7 +348,11 @@ function ConditionForm({
           <FieldRow icon={<IconMapPin size={16} />} label="지역">
             <RegionPicker
               value={form.values.region}
-              onChange={(v) => form.setFieldValue('region', v)}
+              province={form.values.province ?? '충청북도'}
+              onChange={(city, province) => {
+                form.setFieldValue('region', city);
+                form.setFieldValue('province', province);
+              }}
               error={form.errors.region as string | undefined}
             />
           </FieldRow>
@@ -456,16 +457,15 @@ function ConditionForm({
 
 function RegionPicker({
   value,
+  province,
   onChange,
   error,
 }: {
   value: string;
-  onChange: (city: string) => void;
+  province: string;
+  onChange: (city: string, province: string) => void;
   error?: string;
 }) {
-  const [province, setProvince] = useState<string>(
-    () => getProvinceByCity(value) ?? '충청북도',
-  );
   const cities = getCitiesByProvince(province);
 
   return (
@@ -475,9 +475,9 @@ function RegionPicker({
         value={province}
         onChange={(v) => {
           if (!v) return;
-          setProvince(v);
           const nextCities = getCitiesByProvince(v);
-          if (!nextCities.includes(value)) onChange(nextCities[0] ?? '');
+          const nextCity = nextCities.includes(value) ? value : nextCities[0] ?? '';
+          onChange(nextCity, v);
         }}
         allowDeselect={false}
         searchable
@@ -488,7 +488,7 @@ function RegionPicker({
       <Select
         data={cities}
         value={value}
-        onChange={(v) => onChange(v ?? '')}
+        onChange={(v) => onChange(v ?? '', province)}
         allowDeselect={false}
         searchable
         placeholder="시·군·구"

@@ -3,15 +3,19 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import {
+  Alert,
   Badge,
   Box,
   Button,
   Card,
+  Center,
   Container,
   Grid,
   GridCol,
   Group,
+  Loader,
   Stack,
   Text,
   ThemeIcon,
@@ -20,6 +24,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import {
+  IconAlertTriangle,
   IconArrowLeft,
   IconArrowRight,
   IconChartLine,
@@ -27,8 +32,23 @@ import {
   IconStarFilled,
   IconStar,
 } from '@tabler/icons-react';
-import type { CropPhase, CropRecommendation, Mode } from '@/lib/types';
-import { PHASE_COLOR, PHASE_LABEL, getRecommendations } from '@/lib/recommend/mock';
+import type { CropPhase, CropRecommendation, Mode, OnboardingInput } from '@/lib/types';
+import { ONBOARDING_STORAGE_KEY } from '@/lib/constants';
+import { PHASE_COLOR, PHASE_LABEL } from '@/lib/recommend/mock';
+import { defaultOnboardingInput, fetchRecommendations } from '@/lib/api/recommend';
+
+/** sessionStorage 에 저장된 온보딩 입력을 읽어온다. 없거나 깨졌으면 mode 기본값. */
+function readOnboardingInput(mode: Mode): OnboardingInput {
+  if (typeof window === 'undefined') return defaultOnboardingInput(mode);
+  try {
+    const raw = sessionStorage.getItem(ONBOARDING_STORAGE_KEY);
+    if (!raw) return defaultOnboardingInput(mode);
+    const parsed = JSON.parse(raw) as OnboardingInput;
+    return { ...parsed, mode };
+  } catch {
+    return defaultOnboardingInput(mode);
+  }
+}
 
 const MONTHS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
 
@@ -36,7 +56,17 @@ function ResultInner() {
   const params = useSearchParams();
   const router = useRouter();
   const mode: Mode = params.get('mode') === 'weekend' ? 'weekend' : 'returning';
-  const recommendations = useMemo(() => getRecommendations(mode), [mode]);
+  const input = useMemo(() => readOnboardingInput(mode), [mode]);
+
+  const {
+    data: recommendations = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: ['recommend', input],
+    queryFn: () => fetchRecommendations(input),
+  });
 
   return (
     <Box bg="gray.0" mih="100vh" py={{ base: 24, md: 48 }}>
@@ -74,13 +104,41 @@ function ResultInner() {
             </Text>
           </Box>
 
-          <Grid gutter="lg">
-            {recommendations.map((rec, idx) => (
-              <GridCol key={rec.cropId} span={{ base: 12, md: 4 }}>
-                <RecommendationCard rec={rec} mode={mode} rank={idx + 1} />
-              </GridCol>
-            ))}
-          </Grid>
+          {isLoading ? (
+            <Center mih={280}>
+              <Stack align="center" gap="xs">
+                <Loader color="green" />
+                <Text size="sm" c="dimmed">
+                  우수농가 데이터와 매칭 중…
+                </Text>
+              </Stack>
+            </Center>
+          ) : isError ? (
+            <Alert
+              color="red"
+              variant="light"
+              icon={<IconAlertTriangle size={16} />}
+              title="추천 결과를 불러오지 못했습니다"
+            >
+              <Stack gap="sm" align="flex-start">
+                <Text size="sm">
+                  추천 서버에 연결할 수 없습니다. 백엔드(8000 포트)가 실행 중인지 확인한 뒤 다시
+                  시도해 주세요.
+                </Text>
+                <Button size="xs" variant="white" color="red" onClick={() => refetch()}>
+                  다시 시도
+                </Button>
+              </Stack>
+            </Alert>
+          ) : (
+            <Grid gutter="lg">
+              {recommendations.map((rec, idx) => (
+                <GridCol key={rec.cropId} span={{ base: 12, md: 4 }}>
+                  <RecommendationCard rec={rec} mode={mode} rank={idx + 1} />
+                </GridCol>
+              ))}
+            </Grid>
+          )}
 
           <Card radius="md" p="md" withBorder bg="white">
             <Group justify="space-between" wrap="wrap" gap="md">
