@@ -101,6 +101,54 @@ export interface CropOption {
   label: string;
 }
 
+// ───────────── Cultivation guide (농사로 (신)작목별농업기술정보 / cropEbook) ─────────────
+
+export interface EbookIndex {
+  name: string;
+  page: number;
+  base_page?: number;
+  level?: number;
+  order?: number;
+}
+
+export interface EbookEntry {
+  ebook_code: string;
+  ebook_name: string;
+  file_no: string;
+  file_url?: string | null;
+  orginl_file_nm?: string | null;
+  thumbnail_code?: string | null;
+  thumbnail_name?: string | null;
+  std_item_code?: string | null;
+  std_item_name?: string | null;
+  ebook_url?: string | null;
+  ebook_mobile_url?: string | null;
+  indices: EbookIndex[];
+}
+
+export interface CultivationGuide {
+  item_code: string;
+  kind_code: string;
+  crop_name: string;
+  sub_category_name?: string | null;
+  ebooks: EbookEntry[];
+  source?: string | null;
+  updated_at?: string | null;
+}
+
+export interface CropSummary {
+  item_code: string;
+  kind_code: string;
+  crop_name: string;
+  headline: string;
+  key_points: string[];
+  source_ebook_code?: string | null;
+  source_ebook_name?: string | null;
+  source_file_url?: string | null;
+  text_chars?: number;
+  mode?: 'pdf' | 'general';
+}
+
 // ───────────── Shipping dashboard (existing) ─────────────
 
 export interface PricePoint {
