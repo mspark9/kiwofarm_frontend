@@ -262,3 +262,159 @@ export interface ShippingAdviceResponse {
   forecast_days?: number | null;
   message?: string | null;
 }
+
+// ───────────── 판매 도우미 (로컬푸드 직매장 + 채널 비교) ─────────────
+
+export interface StoreOut {
+  id: number;
+  name: string;
+  operator: string;
+  sido: string;
+  sigungu: string;
+  address: string;
+  phone: string;
+  opened: string;
+  lat?: number | null;
+  lng?: number | null;
+  distance_km?: number | null;
+}
+
+export interface NearbyResponse {
+  found: boolean;
+  origin_lat?: number | null;
+  origin_lng?: number | null;
+  origin_label?: string | null;
+  stores: StoreOut[];
+  message?: string | null;
+}
+
+export interface ChannelOut {
+  key: string; // "direct" | "wholesale"
+  label: string;
+  source_price: number;
+  source_unit: string;
+  unit_price?: number | null; // 기준단위(kg 또는 개)당 단가
+  gross?: number | null;
+  commission_pct: number;
+  net?: number | null;
+  note: string;
+  estimated: boolean;
+}
+
+export interface CompareResponse {
+  found: boolean;
+  crop_name: string;
+  amount?: number | null;
+  amount_unit: string; // 'kg' | '개'
+  input_mode: string; // 'weight' | 'count'
+  obs_date?: string | null;
+  channels: ChannelOut[];
+  best_key?: string | null;
+  delta_net?: number | null;
+  message?: string | null;
+}
+
+// ───────────── 위치 기반 채널 추천 (가격 + 운송비 + AI) ─────────────
+
+export interface MarketOut {
+  id: number;
+  name: string;
+  category: string;
+  sido: string;
+  opened: string;
+  corp_count?: number | null;
+  merchant_count?: number | null;
+  lat?: number | null;
+  lng?: number | null;
+  distance_km?: number | null;
+}
+
+export interface PlaceOut {
+  kind: string; // 'direct' | 'wholesale'
+  name: string;
+  distance_km: number;
+  sido: string;
+  address: string;
+  phone: string;
+  lat?: number | null;
+  lng?: number | null;
+}
+
+export interface RecommendChannelOut {
+  key: string;
+  label: string;
+  net?: number | null;
+  unit_price?: number | null;
+  source_price: number;
+  source_unit: string;
+  commission_pct: number;
+  note: string;
+  estimated: boolean;
+  place?: PlaceOut | null;
+  transport_cost?: number | null;
+  net_after?: number | null;
+}
+
+export interface RecommendResponse {
+  found: boolean;
+  crop_name: string;
+  amount?: number | null;
+  amount_unit: string;
+  input_mode: string;
+  obs_date?: string | null;
+  origin_lat?: number | null;
+  origin_lng?: number | null;
+  origin_label?: string | null;
+  channels: RecommendChannelOut[];
+  best_key?: string | null;
+  delta_net_after?: number | null;
+  per_km_won: number;
+  advice: string;
+  advice_source: string; // 'ai' | 'rule' | 'none'
+  nearby_direct: StoreOut[];
+  nearby_wholesale: MarketOut[];
+  message?: string | null;
+}
+
+// 출하 → 판매 인계 (sessionStorage: kiwofarm:sales)
+export interface SalesHandoff {
+  crop: CropOption;
+  amount?: number | null;
+}
+
+// ───────────── 정부 지원사업 매칭 ─────────────
+
+export interface ApplyInfo {
+  where: string;
+  link: string;
+  phone: string;
+}
+
+export interface ProgramOut {
+  id: number;
+  name: string;
+  agency: string;
+  category: string;
+  summary: string;
+  support: string;
+  status: string; // 'eligible' | 'check'
+  reasons: string[];
+  notes: string;
+  audience: string[];
+  apply: ApplyInfo;
+  source_url: string;
+}
+
+export interface SupportMatchResponse {
+  found: boolean;
+  mode: string;
+  age?: number | null;
+  province?: string | null;
+  advice: string;
+  advice_source: string; // 'ai' | 'rule' | 'none'
+  eligible_count: number;
+  check_count: number;
+  excluded_count: number;
+  programs: ProgramOut[];
+  message?: string | null;
+}
