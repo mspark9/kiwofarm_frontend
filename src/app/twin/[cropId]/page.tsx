@@ -198,7 +198,7 @@ function TwinInner({ cropId }: { cropId: string }) {
           </Card>
 
           <Text size="xs" c="dimmed" ta="center" lh={1.6}>
-            ※ 시뮬레이션 결과는 스마트팜코리아 우수농가 112호 평균값 기반의 참고 수치입니다.
+            ※ 시뮬레이션 결과는 스마트팜코리아 우수농가 91호 평균값 기반의 참고 수치입니다.
             <br />
             실제 매출은 기상·시장가격·재배 숙련도에 따라 달라질 수 있습니다.
           </Text>
