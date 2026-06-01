@@ -320,7 +320,7 @@ function HeroPreview() {
               추천 작목 TOP 1
             </Text>
             <Text fw={800} fz={14}>
-              방울토마토
+              완숙토마토
             </Text>
           </Box>
         </Group>

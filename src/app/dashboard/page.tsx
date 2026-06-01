@@ -108,7 +108,7 @@ export default function DashboardPage() {
                   최근 추천 결과
                 </Text>
                 <Title order={5} mt={4}>
-                  방울토마토 · 옥천 · 적합도 94%
+                  완숙토마토 · 옥천 · 적합도 94%
                 </Title>
                 <Text size="sm" c="gray.7" mt={4}>
                   예상 연 매출 ₩4,260만원 · 순이익 ₩2,180만원

@@ -28,6 +28,7 @@ import {
   IconArrowLeft,
   IconArrowRight,
   IconChartLine,
+  IconInfoCircle,
   IconSparkles,
   IconStarFilled,
   IconStar,
@@ -82,7 +83,7 @@ function ResultInner() {
               </Group>
             </UnstyledButton>
             <Badge variant="light" color="green" leftSection={<IconSparkles size={12} />}>
-              XGBoost · 우수농가 112호 매칭
+              우수농가 실측 매칭 · 91호
             </Badge>
           </Group>
 
@@ -233,6 +234,17 @@ function RecommendationCard({
                 <Badge color="gray" variant="light" radius="sm" size="sm">
                   적합도 {rec.matchScore}%
                 </Badge>
+                {rec.tier === 'premium' && (
+                  <Badge
+                    color="teal"
+                    variant="filled"
+                    radius="sm"
+                    size="sm"
+                    leftSection={<IconSparkles size={10} />}
+                  >
+                    우수농가 실측
+                  </Badge>
+                )}
               </Group>
               <Title order={4} fz={20} mt={2}>
                 {rec.name}
@@ -253,6 +265,16 @@ function RecommendationCard({
           <Text size="sm" lh={1.6} c="gray.8">
             {rec.llmReason}
           </Text>
+          {rec.peerEvidence && (
+            <Group gap={6} mt={8} wrap="nowrap" align="flex-start">
+              <ThemeIcon size={16} radius="xl" color="teal" variant="light">
+                <IconSparkles size={10} />
+              </ThemeIcon>
+              <Text size="xs" c="teal.7" lh={1.5} fw={500}>
+                {rec.peerEvidence}
+              </Text>
+            </Group>
+          )}
         </Box>
 
         <Box>
@@ -274,15 +296,21 @@ function RecommendationCard({
         </Group>
 
         <Box mt="auto">
-          <Group justify="space-between" mb={10}>
-            <Text size="xs" c="dimmed">
-              {mode === 'returning' ? '인근 우수농가' : '주말농장 사용자'} {rec.peerFarms}곳 중{' '}
+          {/* premium 만 실측 우수농가 매칭 비율을 노출. standard 는 근거 데이터가
+              없어 가짜 소셜프루프 대신 아무것도 표시하지 않는다. */}
+          {rec.tier === 'premium' && (
+            <Text size="xs" c="dimmed" mb={10}>
+              {rec.name} 우수농가{' '}
               <Text span fw={700} c="green.7">
-                {Math.round((rec.peerFarms * rec.peerAgreeRate) / 100)}곳
+                {rec.peerFarms}곳
               </Text>{' '}
-              동일 선택
+              중{' '}
+              <Text span fw={700} c="green.7">
+                {rec.peerAgreeRate}%
+              </Text>
+              가 내 조건과 유사
             </Text>
-          </Group>
+          )}
           <Button
             component={Link}
             href={`/twin/${rec.cropId}?mode=${mode}`}
@@ -303,9 +331,31 @@ function PrimaryNumber({ rec, mode }: { rec: CropRecommendation; mode: Mode }) {
     return (
       <Group gap="lg" align="flex-end">
         <Box>
-          <Text size="xs" c="dimmed" mb={2}>
-            예상 연 매출
-          </Text>
+          <Group gap={4} mb={2} align="center" wrap="nowrap">
+            <Text size="xs" c="dimmed">
+              예상 연 매출
+            </Text>
+            {rec.revenueBasis && (
+              <Tooltip
+                label={rec.revenueBasis}
+                multiline
+                w={250}
+                withArrow
+                position="top"
+                events={{ hover: true, focus: true, touch: true }}
+              >
+                <ThemeIcon
+                  size={15}
+                  radius="xl"
+                  color="gray"
+                  variant="subtle"
+                  style={{ cursor: 'help' }}
+                >
+                  <IconInfoCircle size={13} />
+                </ThemeIcon>
+              </Tooltip>
+            )}
+          </Group>
           <Text fz={26} fw={800} lh={1} c="green.8">
             ₩{rec.expectedRevenueManwon.toLocaleString()}
             <Text span size="sm" fw={600} c="dimmed">
