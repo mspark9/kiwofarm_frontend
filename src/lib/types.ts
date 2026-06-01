@@ -150,6 +150,70 @@ export interface CropSummary {
   mode?: 'pdf' | 'general';
 }
 
+// ───────────── 영농 캘린더 (RAG 농사계획 + 메모 + 일정 재조정) ─────────────
+
+export type TaskCategory =
+  | 'seeding'
+  | 'growing'
+  | 'fertilize'
+  | 'water'
+  | 'pest'
+  | 'harvest'
+  | 'etc';
+
+export type TaskStatus = 'planned' | 'done' | 'delayed';
+
+export interface FarmPlanCreate {
+  startDate: string; // YYYY-MM-DD
+  itemCode: string;
+  kindCode: string;
+  cropName: string;
+  region: string;
+  province?: string;
+  area: number;
+  areaUnit: AreaUnit;
+  visitFrequency?: string; // weekly_1 | weekly_2 | weekly_3 | daily
+  visitDays?: number[]; // 0=일 ~ 6=토
+}
+
+export interface FarmTask {
+  id: number;
+  title: string;
+  detail?: string | null;
+  category: TaskCategory;
+  dayOffset: number;
+  durationDays: number;
+  order: number;
+  status: TaskStatus;
+  date: string; // start_date + day_offset (서버 계산, YYYY-MM-DD)
+  endDate: string;
+  actualDate?: string | null;
+  sourceNote?: string | null;
+}
+
+export interface TaskMemo {
+  id: number;
+  memoDate: string; // YYYY-MM-DD
+  content: string;
+}
+
+export interface FarmPlan {
+  id: number;
+  startDate: string;
+  cropItemCode: string;
+  cropKindCode: string;
+  cropName: string;
+  region: string;
+  province?: string | null;
+  area: number;
+  areaUnit: AreaUnit;
+  visitFrequency?: string | null;
+  visitDays?: number[] | null;
+  trackProgress: boolean;
+  tasks: FarmTask[];
+  memos: TaskMemo[];
+}
+
 // ───────────── Shipping dashboard (existing) ─────────────
 
 export interface PricePoint {
