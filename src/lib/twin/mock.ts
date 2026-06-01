@@ -4,7 +4,7 @@ const M = (n: number) => `${n}월`;
 
 const tomato: TwinData = {
   cropId: 'tomato',
-  name: '방울토마토',
+  name: '완숙토마토',
   emoji: '🍅',
   totalRevenueManwon: 4260,
   totalCostManwon: 2080,

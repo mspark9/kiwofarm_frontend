@@ -447,7 +447,7 @@ function ConditionForm({
             <IconSparkles size={12} />
           </ThemeIcon>
           <Text size="xs" c="green.9" lh={1.6}>
-            입력 즉시 XGBoost 모델이 스마트팜 우수농가 112호 데이터와 비교해 적합 작목 TOP 3를 가려냅니다.
+            입력 즉시 스마트팜 우수농가 91호 실측 데이터와 비교해 적합 작목 TOP 3를 가려냅니다.
           </Text>
         </Group>
       </Card>

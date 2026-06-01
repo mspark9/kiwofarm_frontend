@@ -82,7 +82,7 @@ function ResultInner() {
               </Group>
             </UnstyledButton>
             <Badge variant="light" color="green" leftSection={<IconSparkles size={12} />}>
-              XGBoost · 우수농가 112호 매칭
+              우수농가 실측 매칭 · 91호
             </Badge>
           </Group>
 
@@ -233,6 +233,17 @@ function RecommendationCard({
                 <Badge color="gray" variant="light" radius="sm" size="sm">
                   적합도 {rec.matchScore}%
                 </Badge>
+                {rec.tier === 'premium' && (
+                  <Badge
+                    color="teal"
+                    variant="filled"
+                    radius="sm"
+                    size="sm"
+                    leftSection={<IconSparkles size={10} />}
+                  >
+                    우수농가 실측
+                  </Badge>
+                )}
               </Group>
               <Title order={4} fz={20} mt={2}>
                 {rec.name}
@@ -253,6 +264,16 @@ function RecommendationCard({
           <Text size="sm" lh={1.6} c="gray.8">
             {rec.llmReason}
           </Text>
+          {rec.peerEvidence && (
+            <Group gap={6} mt={8} wrap="nowrap" align="flex-start">
+              <ThemeIcon size={16} radius="xl" color="teal" variant="light">
+                <IconSparkles size={10} />
+              </ThemeIcon>
+              <Text size="xs" c="teal.7" lh={1.5} fw={500}>
+                {rec.peerEvidence}
+              </Text>
+            </Group>
+          )}
         </Box>
 
         <Box>
