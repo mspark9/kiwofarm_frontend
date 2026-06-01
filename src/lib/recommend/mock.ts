@@ -15,8 +15,10 @@ const calMonths = (phases: Record<CropPhase, number[]>): { month: number; phase:
 export const RECOMMENDATIONS_RETURNING: CropRecommendation[] = [
   {
     cropId: 'tomato',
-    name: '방울토마토',
+    name: '완숙토마토',
     emoji: '🍅',
+    tier: 'premium',
+    peerEvidence: '경남 우수농가 11호 포함, 유사 재배조건 49호(주요 품종 데프니스·데이로스, 평균 1,800평) 실측 데이터 기반',
     matchScore: 94,
     difficulty: 2,
     expectedRevenueManwon: 4260,
@@ -87,14 +89,15 @@ export const RECOMMENDATIONS_RETURNING: CropRecommendation[] = [
 export const RECOMMENDATIONS_WEEKEND: CropRecommendation[] = [
   {
     cropId: 'tomato',
-    name: '방울토마토',
+    name: '완숙토마토',
     emoji: '🍅',
+    tier: 'premium',
     matchScore: 92,
     difficulty: 2,
     expectedRevenueManwon: 0,
     expectedNetManwon: 0,
-    expectedYieldKg: 24,
-    expectedDirectPriceWon: 12000,
+    expectedYieldKg: 30,
+    expectedDirectPriceWon: 6000,
     llmReason: '주말 1회 방문으로 충분히 관리 가능한 작목. 8~10주 수확이 길어 가족 소비·이웃나눔 모두 적합.',
     tags: ['주1회 관리', '8주 연속 수확', '직거래 가능'],
     calendar: calMonths({
