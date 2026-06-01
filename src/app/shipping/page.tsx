@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
   Badge,
   Box,
+  Button,
   Card,
   Container,
   Group,
@@ -17,10 +19,13 @@ import {
 } from '@mantine/core';
 import {
   IconArrowDownRight,
+  IconArrowRight,
   IconArrowUpRight,
   IconCalendar,
   IconSparkles,
 } from '@tabler/icons-react';
+import { SALES_STORAGE_KEY } from '@/lib/constants';
+import { forecastToKg, recentToKg, trendToKg, unitToKg } from '@/lib/price';
 import {
   fetchPriceForecast,
   fetchPriceTrend,
@@ -30,17 +35,7 @@ import {
 import { CropSearchAutocomplete } from '@/components/shipping/CropSearchAutocomplete';
 import { PriceTrendChart } from '@/components/shipping/PriceTrendChart';
 import { PriceForecastChart } from '@/components/shipping/PriceForecastChart';
-import type { CropOption } from '@/lib/types';
-
-const DEFAULT_CROP: CropOption = {
-  group_code: '200',
-  group_name: '채소류',
-  item_code: '225',
-  item_name: '토마토',
-  kind_code: '00',
-  kind_name: '토마토',
-  label: '토마토',
-};
+import type { CropOption, SalesHandoff } from '@/lib/types';
 
 function pctText(v?: number | null) {
   if (v == null) return '–';
@@ -61,29 +56,41 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 export default function ShippingPage() {
-  const [crop, setCrop] = useState<CropOption>(DEFAULT_CROP);
+  const router = useRouter();
+  const [crop, setCrop] = useState<CropOption | null>(null);
+
+  const goToSales = () => {
+    if (!crop) return;
+    const handoff: SalesHandoff = { crop };
+    sessionStorage.setItem(SALES_STORAGE_KEY, JSON.stringify(handoff));
+    router.push('/sales');
+  };
 
   const price = useQuery({
-    queryKey: ['recent-price', crop.item_code, crop.kind_code],
-    queryFn: () => fetchRecentPrice(crop),
+    queryKey: ['recent-price', crop?.item_code, crop?.kind_code],
+    queryFn: () => fetchRecentPrice(crop!),
+    enabled: !!crop,
   });
 
   const trend = useQuery({
-    queryKey: ['trend', crop.item_code, crop.kind_code],
-    queryFn: () => fetchPriceTrend(crop),
+    queryKey: ['trend', crop?.item_code, crop?.kind_code],
+    queryFn: () => fetchPriceTrend(crop!),
+    enabled: !!crop,
   });
 
   const forecast = useQuery({
-    queryKey: ['forecast', crop.item_code, crop.kind_code],
-    queryFn: () => fetchPriceForecast(crop),
+    queryKey: ['forecast', crop?.item_code, crop?.kind_code],
+    queryFn: () => fetchPriceForecast(crop!),
+    enabled: !!crop,
   });
 
   const advice = useQuery({
-    queryKey: ['advice', crop.item_code, crop.kind_code],
-    queryFn: () => fetchShippingAdvice(crop),
+    queryKey: ['advice', crop?.item_code, crop?.kind_code],
+    queryFn: () => fetchShippingAdvice(crop!),
+    enabled: !!crop,
   });
 
-  const data = price.data;
+  const data = price.data ? recentToKg(price.data) : undefined;
   const delta = data?.delta_pct ?? null;
   const up = (delta ?? 0) > 0;
   const down = (delta ?? 0) < 0;
@@ -101,11 +108,24 @@ export default function ShippingPage() {
               <Text size="xs" c="dimmed" tt="uppercase" fw={700} mb={6} style={{ letterSpacing: 0.6 }}>
                 출하 도우미 · 최근일자 도매가
               </Text>
-              <Title order={2}>{data?.crop_name ?? crop.label}</Title>
+              <Title order={2}>{crop ? (data?.crop_name ?? crop.label) : '작목을 검색하세요'}</Title>
             </Box>
             <CropSearchAutocomplete value={crop} onSelect={setCrop} />
           </Group>
 
+          {!crop && (
+            <Card radius="lg" p="xl" withBorder shadow="sm">
+              <Stack gap={6} align="center" py="lg">
+                <Text fw={700}>판매할 작목을 검색해 주세요</Text>
+                <Text size="sm" c="dimmed" ta="center">
+                  검색하면 최근 도매가·가격추이·예측·AI 출하 조언을 보여드립니다.
+                </Text>
+              </Stack>
+            </Card>
+          )}
+
+          {crop && (
+          <>
           {/* 최근일자 도매가 */}
           <Box pos="relative" mih={180}>
             <LoadingOverlay visible={price.isLoading} zIndex={10} overlayProps={{ blur: 2, color: 'gray.0' }} />
@@ -162,6 +182,8 @@ export default function ShippingPage() {
                     <IconCalendar size={14} stroke={1.5} color="var(--mantine-color-gray-5)" />
                     <Text size="xs" c="dimmed">
                       기준일 {data.obs_date} · 출처 KAMIS
+                      {price.data && (unitToKg(price.data.unit) ?? 1) > 1 &&
+                        ` · 원단가 ₩${price.data.price?.toLocaleString()}/${price.data.unit}`}
                     </Text>
                   </Group>
                 </Stack>
@@ -170,7 +192,7 @@ export default function ShippingPage() {
           </Box>
 
           {/* 최근 가격추이 */}
-          {trend.data && trend.data.found && <PriceTrendChart trend={trend.data} />}
+          {trend.data && trend.data.found && <PriceTrendChart trend={trendToKg(trend.data)} />}
 
           {/* 가격 예측 (Prophet) */}
           {forecast.isLoading && (
@@ -184,7 +206,7 @@ export default function ShippingPage() {
             </Card>
           )}
           {forecast.data && forecast.data.found && (
-            <PriceForecastChart forecast={forecast.data} />
+            <PriceForecastChart forecast={forecastToKg(forecast.data)} />
           )}
 
           {/* AI 출하 조언 */}
@@ -257,6 +279,28 @@ export default function ShippingPage() {
               )}
             </Stack>
           </Card>
+
+          {/* 판매 도우미로 이어가기 */}
+          <Card radius="lg" p="lg" withBorder shadow="sm" bg="green.0" style={{ borderColor: 'var(--mantine-color-green-3)' }}>
+            <Group justify="space-between" align="center" wrap="wrap" gap="md">
+              <Box>
+                <Text fw={700}>이제 어디에 팔까요?</Text>
+                <Text size="sm" c="dimmed">
+                  직매장 직거래와 도매 출하 수익을 비교하고 가까운 직매장을 찾아보세요.
+                </Text>
+              </Box>
+              <Button
+                color="green"
+                size="md"
+                onClick={goToSales}
+                rightSection={<IconArrowRight size={16} />}
+              >
+                판매 도우미로
+              </Button>
+            </Group>
+          </Card>
+          </>
+          )}
         </Stack>
       </Container>
     </Box>

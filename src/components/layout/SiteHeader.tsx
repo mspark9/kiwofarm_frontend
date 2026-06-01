@@ -21,6 +21,8 @@ import {
   IconChartLine,
   IconChevronDown,
   IconLeaf,
+  IconBuildingBank,
+  IconBuildingStore,
   IconLogin2,
   IconMenu2,
   IconTruck,
@@ -33,6 +35,8 @@ const MENU_LINKS: MenuLink[] = [
   { label: '작목 추천', href: '/onboarding', icon: <IconLeaf size={16} /> },
   { label: '대시보드', href: '/dashboard', icon: <IconChartLine size={16} /> },
   { label: '출하 도우미', href: '/shipping', icon: <IconTruck size={16} /> },
+  { label: '판매 도우미', href: '/sales', icon: <IconBuildingStore size={16} /> },
+  { label: '지원사업', href: '/support', icon: <IconBuildingBank size={16} /> },
 ];
 
 export function SiteHeader() {
