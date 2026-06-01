@@ -56,6 +56,7 @@ export interface CropRecommendation {
   color: CropColor;
   tier?: 'premium' | 'standard';
   peerEvidence?: string | null;
+  revenueBasis?: string | null;
 }
 
 // ───────────── Digital twin ─────────────

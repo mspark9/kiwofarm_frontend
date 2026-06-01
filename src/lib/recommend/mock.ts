@@ -19,6 +19,7 @@ export const RECOMMENDATIONS_RETURNING: CropRecommendation[] = [
     emoji: '🍅',
     tier: 'premium',
     peerEvidence: '경남 우수농가 11호 포함, 유사 재배조건 49호(주요 품종 데프니스·데이로스, 평균 1,800평) 실측 데이터 기반',
+    revenueBasis: '매출 = KAMIS 도매 출하월(7·8·9·10월) 평균 4,077원/kg × 표준수율 33kg/평 × 300평',
     matchScore: 94,
     difficulty: 2,
     expectedRevenueManwon: 4260,
