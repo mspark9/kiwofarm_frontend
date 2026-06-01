@@ -23,7 +23,7 @@ export async function fetchCultivation(
   return data;
 }
 
-// PDF 다운 + 텍스트 추출 + GPT-4o 요약. 첫 호출 10~30초, 캐시 후 즉시.
+// RAG(농사로 PDF → 청크 → 임베딩 → pgvector 검색) + GPT 요약. 첫 호출 10~30초, 캐시 후 즉시.
 export async function fetchCropSummary(
   itemCode: string,
   kindCode: string,
