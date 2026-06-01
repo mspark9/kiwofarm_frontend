@@ -37,13 +37,13 @@ import {
   IconAlertCircle,
   IconArrowLeft,
   IconCalendarPlus,
-  IconCalendarTime,
   IconCheck,
   IconChevronLeft,
   IconChevronRight,
   IconClock,
   IconMapPin,
   IconNote,
+  IconPencil,
   IconSearch,
   IconSparkles,
   IconX,
@@ -52,6 +52,7 @@ import dayjs from 'dayjs';
 import { searchCrops } from '@/lib/api/crops';
 import {
   createPlan,
+  delayTasksBatch,
   getPlan,
   updateSettings,
   updateTask,
@@ -563,33 +564,25 @@ function PlanHeader({
     onSuccess: onChange,
   });
 
-  const visitLabel =
+  const visitValue =
     (plan.visitDays?.length ?? 0) > 0
-      ? [...(plan.visitDays ?? [])]
+      ? `${[...(plan.visitDays ?? [])]
           .sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7))
           .map((d) => WEEKDAY_LABEL[d])
-          .join('·')
+          .join('·')}요일`
       : '매일';
 
-  // 헤더 요약: 가로 한 줄(지역·면적·시작·작업·방문)을 카드 폭 전체에 균등 분할. 세그먼트 사이 세로 구분선.
-  type Seg = { key: string; node: React.ReactNode; color?: string; bold?: boolean };
+  // 헤더 요약: 가로 한 줄(장소·면적·시작·방문)을 "라벨: 값" 형식으로 양쪽 정렬.
+  type Seg = { key: string; label: string; value: string; color?: string; bold?: boolean };
   const summarySegments: Seg[] = [
-    { key: 'region', color: 'green.8', bold: true, node: plan.region || '지역 미지정' },
+    { key: 'region', label: '장소', color: 'green.8', bold: true, value: plan.region || '미지정' },
     {
       key: 'area',
-      node: `${plan.area.toLocaleString()} ${AREA_UNIT_LABEL[plan.areaUnit]}`,
+      label: '면적',
+      value: `${plan.area.toLocaleString()} ${AREA_UNIT_LABEL[plan.areaUnit]}`,
     },
-    { key: 'start', node: `시작 ${dayjs(plan.startDate).format('YYYY.MM.DD')}` },
-    {
-      key: 'visit',
-      color: 'teal.7',
-      node: (
-        <Group gap={4} wrap="nowrap" justify="center">
-          <IconCalendarTime size={16} color="var(--mantine-color-teal-7)" />
-          <span>방문 {visitLabel}</span>
-        </Group>
-      ),
-    },
+    { key: 'start', label: '시작', value: dayjs(plan.startDate).format('YYYY.MM.DD') },
+    { key: 'visit', label: '방문', color: 'teal.7', value: visitValue },
   ];
 
   return (
@@ -628,24 +621,19 @@ function PlanHeader({
           disabled={settingsMut.isPending}
         />
       </Group>
-      {/* 요약 행: 카드(연두색) 폭 전체를 균등 분할해 오른쪽 끝까지 펼침 */}
-      <Group gap={0} mt="md" wrap="nowrap" align="stretch">
+      {/* 요약 행: 가로 배열. 각 칸 안에서 라벨(왼쪽 끝) ↔ 값(오른쪽 끝) 양쪽 정렬, 칸 사이 세로 구분선 */}
+      <Group gap="md" mt="md" wrap="nowrap" align="stretch">
         {summarySegments.map((seg, i) => (
           <Fragment key={seg.key}>
-            {i > 0 && <Divider orientation="vertical" mx={{ base: 'xs', md: 'md' }} />}
-            <Box
-              style={{
-                flex: 1,
-                minWidth: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Text ta="center" fz={{ base: 13, md: 17 }} fw={seg.bold ? 700 : 600} c={seg.color}>
-                {seg.node}
+            {i > 0 && <Divider orientation="vertical" size="sm" color="green.4" />}
+            <Group justify="space-between" wrap="nowrap" gap="sm" style={{ flex: 1, minWidth: 0 }}>
+              <Text fz={{ base: 13, md: 16 }} fw={600} c="dimmed">
+                {seg.label}
               </Text>
-            </Box>
+              <Text fz={{ base: 13, md: 16 }} fw={seg.bold ? 700 : 600} c={seg.color} ta="right">
+                {seg.value}
+              </Text>
+            </Group>
           </Fragment>
         ))}
       </Group>
@@ -990,6 +978,7 @@ function PlanCalendar({
               align="stretch"
               justify="flex-start"
               style={{
+                position: 'relative',
                 width: '100%',
                 height: '100%',
                 boxSizing: 'border-box',
@@ -1002,6 +991,20 @@ function PlanCalendar({
               <Text ta="center" size="md" fw={isSelected ? 700 : 500} lh={1} style={{ color: numColor }}>
                 {date.getDate()}
               </Text>
+
+              {hasMemo && (
+                <IconPencil
+                  size={14}
+                  stroke={2}
+                  color="var(--mantine-color-yellow-7)"
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                  }}
+                />
+              )}
 
               {laneCount > 0 && (
                 <Stack gap={2} style={{ width: '100%' }}>
@@ -1027,7 +1030,7 @@ function PlanCalendar({
                 </Stack>
               )}
 
-              {(dots.length > 0 || hasMemo) && (
+              {dots.length > 0 && (
                 <Group gap={2} justify="center" style={{ minHeight: 6 }}>
                   {dots.map((c) => (
                     <Box
@@ -1040,16 +1043,6 @@ function PlanCalendar({
                       }}
                     />
                   ))}
-                  {hasMemo && (
-                    <Box
-                      w={5}
-                      h={5}
-                      style={{
-                        borderRadius: '50%',
-                        background: 'var(--mantine-color-yellow-6)',
-                      }}
-                    />
-                  )}
                 </Group>
               )}
             </Stack>
@@ -1181,6 +1174,22 @@ function DayPanel({
       notifications.show({ color: 'red', message: '작업 상태 변경에 실패했습니다.' }),
   });
 
+  const batchDelayMut = useMutation({
+    mutationFn: ({ taskIds, delayDays }: { taskIds: number[]; delayDays: number }) =>
+      delayTasksBatch(planId, taskIds, delayDays),
+    onSuccess: (p) => {
+      onChange(p);
+      notifications.show({ color: 'orange', message: '이 날짜 작업을 한번에 지연했습니다.' });
+    },
+    onError: () =>
+      notifications.show({ color: 'red', message: '일괄 지연에 실패했습니다.' }),
+  });
+
+  // 일괄 지연 대상: 이 날짜의 완료되지 않은 작업
+  const delayable = dayTasks.filter((t) => t.status !== 'done');
+  const [batchDelay, setBatchDelay] = useState<number | ''>(3);
+  const [batchOpen, setBatchOpen] = useState(false);
+
   const memoMut = useMutation({
     mutationFn: (content: string) => upsertMemo(planId, key!, content),
     onSuccess: (p) => {
@@ -1215,6 +1224,55 @@ function DayPanel({
           </Text>
         ) : (
           <Stack gap="sm">
+            {plan.trackProgress && delayable.length > 1 && (
+              <Card radius="md" p="sm" withBorder bg="orange.0" style={{ borderColor: 'var(--mantine-color-orange-2)' }}>
+                <Group justify="space-between" wrap="nowrap">
+                  <Text size="sm" fw={700} c="orange.8">
+                    이 날짜 작업 {delayable.length}건 한번에 지연
+                  </Text>
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    color="orange"
+                    leftSection={<IconClock size={12} />}
+                    onClick={() => setBatchOpen((v) => !v)}
+                  >
+                    {batchOpen ? '닫기' : '열기'}
+                  </Button>
+                </Group>
+                {batchOpen && (
+                  <Group gap={6} align="center" mt="sm">
+                    <Text size="xs" c="dimmed">
+                      며칠 미룰까요?
+                    </Text>
+                    <NumberInput
+                      size="xs"
+                      w={80}
+                      min={1}
+                      hideControls
+                      value={batchDelay}
+                      onChange={(v) => setBatchDelay(typeof v === 'number' ? v : '')}
+                    />
+                    <Button
+                      size="compact-xs"
+                      color="orange"
+                      loading={batchDelayMut.isPending}
+                      disabled={typeof batchDelay !== 'number'}
+                      onClick={() => {
+                        if (typeof batchDelay !== 'number') return;
+                        batchDelayMut.mutate({
+                          taskIds: delayable.map((t) => t.id),
+                          delayDays: batchDelay,
+                        });
+                        setBatchOpen(false);
+                      }}
+                    >
+                      적용 (이후 일정 시프트)
+                    </Button>
+                  </Group>
+                )}
+              </Card>
+            )}
             {dayTasks.map((t) => (
               <TaskRow
                 key={t.id}

@@ -38,6 +38,19 @@ export async function updateTask(
   return data;
 }
 
+// 같은 날짜의 여러 작업을 한 번에 같은 일수만큼 지연. 대상은 그대로 이동, 이후 일정만 방문요일 스냅.
+export async function delayTasksBatch(
+  planId: number,
+  taskIds: number[],
+  delayDays: number,
+): Promise<FarmPlan> {
+  const { data } = await apiClient.patch<FarmPlan>(
+    `/api/v1/plans/${planId}/tasks/delay-batch`,
+    { taskIds, delayDays },
+  );
+  return data;
+}
+
 export async function upsertMemo(
   planId: number,
   memoDate: string,
