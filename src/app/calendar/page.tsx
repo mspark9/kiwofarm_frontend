@@ -151,7 +151,7 @@ function SetupForm() {
       city: null,
       area: 300,
       areaUnit: 'pyeong',
-      visitDays: [6, 0], // 기본: 주말(토·일)
+      visitDays: [6], // 기본: 주말(토)
     },
     validate: {
       startDate: (v) => (v ? null : '시작 날짜를 선택하세요'),
@@ -992,20 +992,6 @@ function PlanCalendar({
                 {date.getDate()}
               </Text>
 
-              {hasMemo && (
-                <IconPencil
-                  size={14}
-                  stroke={2}
-                  color="var(--mantine-color-yellow-7)"
-                  style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                  }}
-                />
-              )}
-
               {laneCount > 0 && (
                 <Stack gap={2} style={{ width: '100%' }}>
                   {Array.from({ length: laneCount }).map((_, lane) => {
@@ -1030,19 +1016,27 @@ function PlanCalendar({
                 </Stack>
               )}
 
-              {dots.length > 0 && (
-                <Group gap={2} justify="center" style={{ minHeight: 6 }}>
-                  {dots.map((c) => (
-                    <Box
-                      key={c}
-                      w={5}
-                      h={5}
-                      style={{
-                        borderRadius: '50%',
-                        background: `var(--mantine-color-${CATEGORY_META[c].color}-6)`,
-                      }}
-                    />
-                  ))}
+              <Group gap={2} justify="center" style={{ minHeight: 6 }}>
+                {dots.map((c) => (
+                  <Box
+                    key={c}
+                    w={5}
+                    h={5}
+                    style={{
+                      borderRadius: '50%',
+                      background: `var(--mantine-color-${CATEGORY_META[c].color}-6)`,
+                    }}
+                  />
+                ))}
+              </Group>
+
+              {hasMemo && (
+                <Group gap={2} justify="center" style={{ minHeight: 15 }}>
+                  <IconPencil
+                    size={15}
+                    stroke={2.4}
+                    color="var(--mantine-color-grape-6)"
+                  />
                 </Group>
               )}
             </Stack>
@@ -1129,7 +1123,7 @@ function PlanCalendar({
       </Group>
       <Group gap="lg" mt={6} justify="center" wrap="wrap">
         <Group gap={6}>
-          <Box w={5} h={5} bg="yellow.6" style={{ borderRadius: '50%' }} />
+          <IconPencil size={15} stroke={2.4} color="var(--mantine-color-grape-6)" />
           <Text size="xs" c="dimmed">
             메모
           </Text>
@@ -1179,22 +1173,38 @@ function DayPanel({
       delayTasksBatch(planId, taskIds, delayDays),
     onSuccess: (p) => {
       onChange(p);
-      notifications.show({ color: 'orange', message: '이 날짜 작업을 한번에 지연했습니다.' });
+      notifications.show({ color: 'orange', message: '이 날짜 작업을 통째로 지연했습니다.' });
     },
     onError: () =>
       notifications.show({ color: 'red', message: '일괄 지연에 실패했습니다.' }),
   });
 
-  // 일괄 지연 대상: 이 날짜의 완료되지 않은 작업
+  const bulkDoneMut = useMutation({
+    mutationFn: async (taskIds: number[]) => {
+      let latest: FarmPlan | null = null;
+      for (const id of taskIds) {
+        latest = await updateTask(planId, id, 'done');
+      }
+      return latest;
+    },
+    onSuccess: (p) => {
+      if (p) onChange(p);
+      notifications.show({ color: 'green', message: '이 날짜 작업을 모두 완료했습니다.' });
+    },
+    onError: () =>
+      notifications.show({ color: 'red', message: '일괄 완료에 실패했습니다.' }),
+  });
+
+  // 미완료 작업 = 전체 완료/지연 대상
   const delayable = dayTasks.filter((t) => t.status !== 'done');
-  const [batchDelay, setBatchDelay] = useState<number | ''>(3);
-  const [batchOpen, setBatchOpen] = useState(false);
+  const [bulkDelayOpen, setBulkDelayOpen] = useState(false);
+  const [bulkDelayDays, setBulkDelayDays] = useState<number | ''>(1);
 
   const memoMut = useMutation({
     mutationFn: (content: string) => upsertMemo(planId, key!, content),
     onSuccess: (p) => {
       onChange(p);
-      notifications.show({ color: 'green', message: '메모를 저장했습니다.' });
+      notifications.show({ color: 'grape', message: '메모를 저장했습니다.' });
     },
   });
 
@@ -1211,11 +1221,82 @@ function DayPanel({
   return (
     <Card radius="lg" p="lg" withBorder bg="white">
       <Stack gap="md">
-        <Group gap={6}>
-          <ThemeIcon size={26} radius="md" color="green" variant="light">
-            <IconCalendarPlus size={14} />
-          </ThemeIcon>
-          <Title order={4}>{dayjs(selected).format('M월 D일 (ddd)')}</Title>
+        <Group justify="space-between" wrap="wrap" gap="sm">
+          <Group gap={6}>
+            <ThemeIcon size={26} radius="md" color="green" variant="light">
+              <IconCalendarPlus size={14} />
+            </ThemeIcon>
+            <Title order={4}>{dayjs(selected).format('M월 D일 (ddd)')}</Title>
+          </Group>
+          {plan.trackProgress && delayable.length > 0 && (
+            <Group gap={6} wrap="nowrap" align="center">
+              <Text size="xs" c="dimmed">
+                전체
+              </Text>
+              <Button
+                size="compact-xs"
+                variant="light"
+                color="green"
+                leftSection={<IconCheck size={12} />}
+                loading={bulkDoneMut.isPending}
+                onClick={() => bulkDoneMut.mutate(delayable.map((t) => t.id))}
+              >
+                완료
+              </Button>
+              {!bulkDelayOpen ? (
+                <Button
+                  size="compact-xs"
+                  variant="light"
+                  color="orange"
+                  leftSection={<IconClock size={12} />}
+                  onClick={() => setBulkDelayOpen(true)}
+                >
+                  지연
+                </Button>
+              ) : (
+                <Group gap={4} wrap="nowrap" align="center">
+                  <NumberInput
+                    size="xs"
+                    w={64}
+                    min={1}
+                    hideControls
+                    value={bulkDelayDays}
+                    onChange={(v) =>
+                      setBulkDelayDays(typeof v === 'number' ? v : '')
+                    }
+                  />
+                  <Text size="xs" c="dimmed">
+                    일
+                  </Text>
+                  <Button
+                    size="compact-xs"
+                    color="orange"
+                    loading={batchDelayMut.isPending}
+                    disabled={typeof bulkDelayDays !== 'number'}
+                    onClick={() => {
+                      if (typeof bulkDelayDays !== 'number') return;
+                      batchDelayMut.mutate({
+                        taskIds: delayable.map((t) => t.id),
+                        delayDays: bulkDelayDays,
+                      });
+                      setBulkDelayOpen(false);
+                    }}
+                  >
+                    적용
+                  </Button>
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    color="gray"
+                    onClick={() => setBulkDelayOpen(false)}
+                    aria-label="지연 취소"
+                  >
+                    <IconX size={12} />
+                  </ActionIcon>
+                </Group>
+              )}
+            </Group>
+          )}
         </Group>
 
         {dayTasks.length === 0 ? (
@@ -1224,55 +1305,6 @@ function DayPanel({
           </Text>
         ) : (
           <Stack gap="sm">
-            {plan.trackProgress && delayable.length > 1 && (
-              <Card radius="md" p="sm" withBorder bg="orange.0" style={{ borderColor: 'var(--mantine-color-orange-2)' }}>
-                <Group justify="space-between" wrap="nowrap">
-                  <Text size="sm" fw={700} c="orange.8">
-                    이 날짜 작업 {delayable.length}건 한번에 지연
-                  </Text>
-                  <Button
-                    size="compact-xs"
-                    variant="subtle"
-                    color="orange"
-                    leftSection={<IconClock size={12} />}
-                    onClick={() => setBatchOpen((v) => !v)}
-                  >
-                    {batchOpen ? '닫기' : '열기'}
-                  </Button>
-                </Group>
-                {batchOpen && (
-                  <Group gap={6} align="center" mt="sm">
-                    <Text size="xs" c="dimmed">
-                      며칠 미룰까요?
-                    </Text>
-                    <NumberInput
-                      size="xs"
-                      w={80}
-                      min={1}
-                      hideControls
-                      value={batchDelay}
-                      onChange={(v) => setBatchDelay(typeof v === 'number' ? v : '')}
-                    />
-                    <Button
-                      size="compact-xs"
-                      color="orange"
-                      loading={batchDelayMut.isPending}
-                      disabled={typeof batchDelay !== 'number'}
-                      onClick={() => {
-                        if (typeof batchDelay !== 'number') return;
-                        batchDelayMut.mutate({
-                          taskIds: delayable.map((t) => t.id),
-                          delayDays: batchDelay,
-                        });
-                        setBatchOpen(false);
-                      }}
-                    >
-                      적용 (이후 일정 시프트)
-                    </Button>
-                  </Group>
-                )}
-              </Card>
-            )}
             {dayTasks.map((t) => (
               <TaskRow
                 key={t.id}
@@ -1289,7 +1321,7 @@ function DayPanel({
 
         <Box>
           <Group gap={6} mb={6}>
-            <IconNote size={16} color="var(--mantine-color-yellow-7)" />
+            <IconNote size={16} color="var(--mantine-color-grape-6)" />
             <Text size="sm" fw={700}>
               이 날짜 메모
             </Text>
@@ -1304,7 +1336,7 @@ function DayPanel({
           <Group justify="flex-end" mt="xs">
             <Button
               size="xs"
-              color="green"
+              color="grape"
               loading={memoMut.isPending}
               onClick={() => memoMut.mutate(memoDraft)}
             >
@@ -1332,40 +1364,44 @@ function TaskRow({
   const [delayOpen, setDelayOpen] = useState(false);
   const [delayDays, setDelayDays] = useState<number | ''>(3);
 
+  const isDelayed = task.status === 'delayed';
   return (
     <Card
       radius="md"
       p="sm"
       withBorder
       style={{
-        borderColor: 'var(--mantine-color-gray-2)',
+        borderColor: isDelayed
+          ? 'var(--mantine-color-orange-3)'
+          : 'var(--mantine-color-gray-2)',
+        background: isDelayed ? 'var(--mantine-color-orange-0)' : undefined,
         opacity: task.status === 'done' ? 0.6 : 1,
       }}
     >
       <Group justify="space-between" wrap="nowrap" align="flex-start">
         <Box style={{ minWidth: 0, flex: 1 }}>
-          <Group gap={6} mb={2}>
-            <Badge size="xs" color={meta.color} variant="light" radius="sm">
+          <Group gap={6} mb={2} wrap="wrap" align="baseline">
+            <Text
+              fw={700}
+              fz={14}
+              td={task.status === 'done' ? 'line-through' : undefined}
+            >
+              {task.title}
+            </Text>
+            <Text size="xs" c={`${meta.color}.7`} fw={600}>
               {meta.label}
-            </Badge>
+            </Text>
             {task.status === 'done' && (
               <Badge size="xs" color="green" radius="sm" leftSection={<IconCheck size={10} />}>
                 완료
               </Badge>
             )}
-            {task.status === 'delayed' && (
-              <Badge size="xs" color="red" variant="light" radius="sm" leftSection={<IconClock size={10} />}>
+            {isDelayed && (
+              <Badge size="xs" color="orange" variant="light" radius="sm" leftSection={<IconClock size={10} />}>
                 지연
               </Badge>
             )}
           </Group>
-          <Text
-            fw={700}
-            fz={14}
-            td={task.status === 'done' ? 'line-through' : undefined}
-          >
-            {task.title}
-          </Text>
           {task.detail && (
             <Text size="xs" c="gray.7" mt={2} lh={1.5}>
               {task.detail}
