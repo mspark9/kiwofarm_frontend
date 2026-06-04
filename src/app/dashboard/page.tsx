@@ -50,19 +50,19 @@ const TILES: Tile[] = [
   },
   {
     title: '재배 정보',
-    desc: '작목 검색 → 농사로 재배 지침 · 품종·재배환경·비배관리·병해충',
-    href: '/calendar',
+    desc: '작목 검색 → 농사로 길잡이 + GPT 키포인트 + PDF 다운로드',
+    href: '/cultivation',
     icon: <IconBook2 size={22} />,
     color: 'grape',
     meta: '농사로 · 작목별농업기술정보',
   },
   {
     title: '영농 캘린더',
-    desc: '월별 농작업·병해충 알림 한눈에',
+    desc: '날짜별 농사 계획 · 작업 일정 자동 생성',
     href: '/calendar',
     icon: <IconCalendarEvent size={22} />,
     color: 'lime',
-    meta: '농사로 데이터',
+    meta: '농사 계획 빌더',
   },
   {
     title: '출하 도우미',
