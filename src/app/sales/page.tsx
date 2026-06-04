@@ -29,7 +29,7 @@ import {
   IconTruck,
 } from '@tabler/icons-react';
 import { fetchChannelCompare, fetchRecommend } from '@/lib/api/sales';
-import { CropSearchAutocomplete } from '@/components/shipping/CropSearchAutocomplete';
+import { CropSearchAutocomplete } from '@/components/crops/CropSearchAutocomplete';
 import { RegionPicker } from '@/components/shared/RegionPicker';
 import { ONBOARDING_STORAGE_KEY, SALES_STORAGE_KEY } from '@/lib/constants';
 import type {
