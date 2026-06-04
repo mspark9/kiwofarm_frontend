@@ -19,7 +19,6 @@ import {
   IconCalendarEvent,
   IconChartLine,
   IconLeaf,
-  IconTruck,
 } from '@tabler/icons-react';
 
 type Tile = {
@@ -64,14 +63,6 @@ const TILES: Tile[] = [
     color: 'lime',
     meta: '농사로 데이터',
   },
-  {
-    title: '출하 도우미',
-    desc: '14일 가격 예측 + 별점 + 우수농가 패턴',
-    href: '/shipping',
-    icon: <IconTruck size={22} />,
-    color: 'orange',
-    meta: 'Prophet · KAMIS 도매가',
-  },
 ];
 
 export default function DashboardPage() {
@@ -95,7 +86,7 @@ export default function DashboardPage() {
             </Text>
           </Box>
 
-          <SimpleGrid cols={{ base: 1, xs: 2, md: 3, lg: 5 }} spacing="lg">
+          <SimpleGrid cols={{ base: 1, xs: 2, md: 2, lg: 4 }} spacing="lg">
             {TILES.map((tile) => (
               <TileCard key={tile.title} tile={tile} />
             ))}
