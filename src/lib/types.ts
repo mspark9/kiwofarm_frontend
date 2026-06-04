@@ -312,6 +312,40 @@ export interface RewardsSummary {
   compare?: CompareOut | null;
 }
 
+// ───────────── 주간 다이제스트 · 위기 알림 (캘린더) ─────────────
+
+// 주간 다이제스트 (이번 주 할 일 3가지 + 코칭 한 줄)
+export interface WeeklyTask {
+  id: number;
+  title: string;
+  category: TaskCategory;
+  date: string; // YYYY-MM-DD
+  status: TaskStatus;
+  message: string; // 그 작업 맞춤 코칭 멘트(알림 본문)
+}
+
+export interface WeeklyDigest {
+  weekStart: string; // 월요일
+  weekEnd: string; // 일요일
+  tasks: WeeklyTask[];
+}
+
+// 위기 알림 (병해충 발생정보 + 기상 특보) — 트윈의 CrisisAlert 와 구분해 PlanAlert.
+export interface PlanAlert {
+  type: string; // pest | weather
+  severity: string; // info | warn | danger
+  title: string;
+  detail: string;
+  source: string;
+  link?: string | null;
+  date?: string | null;
+}
+
+export interface AlertsResponse {
+  alerts: PlanAlert[];
+}
+
+// 여러 작물 계획 일괄 생성 (POST /api/v1/plans/batch)
 export interface BatchFailure {
   index: number; // 입력 배열에서의 위치
   cropName: string;

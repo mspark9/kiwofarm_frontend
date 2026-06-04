@@ -24,13 +24,15 @@ import {
   IconLeaf,
   IconLogin2,
   IconMenu2,
+  IconMessageCircle,
   IconUserCircle,
 } from '@tabler/icons-react';
 
 type MenuLink = { label: string; href: string; icon: React.ReactNode };
 
 const MENU_LINKS: MenuLink[] = [
-  { label: '작목 추천', href: '/onboarding', icon: <IconLeaf size={16} /> },
+  { label: '작목 추천', href: '/planting', icon: <IconLeaf size={16} /> },
+  { label: '챗봇 상담', href: '/planting/chat', icon: <IconMessageCircle size={16} /> },
   { label: '대시보드', href: '/dashboard', icon: <IconChartLine size={16} /> },
   { label: '작물 도감', href: '/collection', icon: <IconBook2 size={16} /> },
 ];
