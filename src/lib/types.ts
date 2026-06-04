@@ -233,13 +233,13 @@ export interface WeeklyTask {
   category: TaskCategory;
   date: string; // YYYY-MM-DD
   status: TaskStatus;
+  message: string; // 그 작업 맞춤 코칭 멘트(알림 본문)
 }
 
 export interface WeeklyDigest {
   weekStart: string; // 월요일
   weekEnd: string; // 일요일
   tasks: WeeklyTask[];
-  coaching: string;
 }
 
 // 여러 작물 계획 일괄 생성 (POST /api/v1/plans/batch)

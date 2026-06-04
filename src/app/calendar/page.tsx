@@ -24,7 +24,6 @@ import {
   Divider,
   Grid,
   Group,
-  List,
   Loader,
   NumberInput,
   SegmentedControl,
@@ -781,16 +780,14 @@ function PlanTabs({
       }}
     >
       <Tabs.List style={{ flexWrap: 'wrap', rowGap: 6 }}>
+        <Tabs.Tab value="all" leftSection={<IconLayoutGrid size={14} />}>
+          모두 보기
+        </Tabs.Tab>
         {plans.map(({ id, plan }) => (
           <Tabs.Tab key={id} value={String(id)}>
             {plan.cropName}
           </Tabs.Tab>
         ))}
-        {plans.length > 1 && (
-          <Tabs.Tab value="all" leftSection={<IconLayoutGrid size={14} />}>
-            모두 보기
-          </Tabs.Tab>
-        )}
         <Tabs.Tab value="__add" leftSection={<IconPlus size={14} />} c="dimmed">
           작물 추가
         </Tabs.Tab>
@@ -1114,7 +1111,6 @@ function AllDayPanel({
   const key = selected ? dayjs(selected).format(FMT) : null;
   const entries = key ? index.get(key) ?? [] : [];
 
-  // 작물(계획) 순서대로 그룹핑. 작업은 id 기준 중복 제거.
   const groups = plans
     .map(({ id, plan }) => {
       const seen = new Set<number>();
@@ -1149,7 +1145,9 @@ function AllDayPanel({
           <ThemeIcon size={26} radius="md" color="green" variant="light">
             <IconLayoutGrid size={14} />
           </ThemeIcon>
-          <Title order={4}>{dayjs(selected).format('M월 D일 (ddd)')}</Title>
+          <Title order={4}>
+            {dayjs(selected).format('M월 D일')} ({KOR_WEEKDAYS[dayjs(selected).day()]})
+          </Title>
         </Group>
 
         {groups.length === 0 ? (
@@ -1247,7 +1245,7 @@ function AllDayPanel({
         )}
 
         <Text size="xs" c="dimmed">
-          작업 완료·지연·메모 편집은 작물별 캘린더(“캘린더 열기”)에서 할 수 있어요.
+          작물별 캘린더에서 작업 완료·지연, 메모 등록이 가능합니다.
         </Text>
       </Stack>
     </Card>
@@ -1268,7 +1266,6 @@ function PlanView({ planId, tabs }: { planId: number; tabs?: ReactNode }) {
 
   const plan = planQ.data;
 
-  // 첫 로드 시 시작월/선택일을 계획 시작일로 맞춤
   useEffect(() => {
     if (plan && !month) {
       const start = dayjs(plan.startDate).toDate();
@@ -1340,7 +1337,6 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
           .join('·')}요일`
       : '매일';
 
-  // 헤더 요약: 가로 한 줄(장소·면적·시작·방문)을 "라벨: 값" 형식으로 양쪽 정렬.
   type Seg = { key: string; label: string; value: string; color?: string; bold?: boolean };
   const summarySegments: Seg[] = [
     { key: 'region', label: '장소', color: 'green.8', bold: true, value: plan.region || '미지정' },
@@ -1381,7 +1377,6 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
           </Title>
         </Box>
       </Group>
-      {/* 요약 행: 가로 배열. 각 칸 안에서 라벨(왼쪽 끝) ↔ 값(오른쪽 끝) 양쪽 정렬, 칸 사이 세로 구분선 */}
       <Group gap="md" mt="md" wrap="nowrap" align="stretch">
         {summarySegments.map((seg, i) => (
           <Fragment key={seg.key}>
@@ -1603,7 +1598,6 @@ function PlanCalendar({
   selected: Date | null;
   onSelect: (d: Date) => void;
 }) {
-  // 월/연도 선택 오버레이 모드 (null이면 달력 표시)
   const [pickerMode, setPickerMode] = useState<'months' | 'years' | null>(null);
   const goToday = () => {
     const today = new Date();
@@ -1915,7 +1909,6 @@ function DayPanel({
       notifications.show({ color: 'red', message: '일괄 완료에 실패했습니다.' }),
   });
 
-  // 미완료 작업 = 전체 완료/지연 대상
   const delayable = dayTasks.filter((t) => t.status !== 'done');
   const [bulkDelayOpen, setBulkDelayOpen] = useState(false);
   const [bulkDelayDays, setBulkDelayDays] = useState<number | ''>(1);
@@ -1948,16 +1941,36 @@ function DayPanel({
       notifications.show({ color: 'red', message: '사진 삭제에 실패했습니다.' }),
   });
 
-  // 선택일이 속한 주(월요일)를 키로 주간 다이제스트(할 일 3 + 코칭) 조회.
-  const weekStartKey = selected
-    ? dayjs(selected).subtract((dayjs(selected).day() + 6) % 7, 'day').format(FMT)
+  // 선택일이 속한 주(월~일)를 키로 주간 다이제스트(할 일 3 + 코칭) 조회.
+  const weekStart = selected
+    ? dayjs(selected).subtract((dayjs(selected).day() + 6) % 7, 'day')
     : null;
+  const weekStartKey = weekStart ? weekStart.format(FMT) : null;
+  // 그 주(월~일)가 통째로 계획 시작일 이전이면 알림을 띄우지 않는다.
+  const beforeStart = weekStart
+    ? weekStart.add(6, 'day').isBefore(dayjs(plan.startDate), 'day')
+    : false;
   const weeklyQ = useQuery({
     queryKey: ['weekly', planId, weekStartKey],
     queryFn: () => getWeeklyDigest(planId, weekStartKey!),
-    enabled: !!weekStartKey,
+    enabled: !!weekStartKey && !beforeStart,
     staleTime: 30 * 60_000,
   });
+  // 그 주(월~일) 작업을 plan 에서 직접 추려 표시(완료 처리 즉시 회색 반영). 코칭만 서버 사용.
+  const weekTasks = useMemo(() => {
+    if (!weekStartKey) return [];
+    const we = dayjs(weekStartKey).add(6, 'day').format(FMT);
+    return plan.tasks
+      .filter((t) => t.date >= weekStartKey && t.date <= we)
+      .slice()
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.order - b.order));
+  }, [plan.tasks, weekStartKey]);
+  // 작업별 코칭 멘트(서버 생성, 주 단위 캐시) → id로 매핑. 완료 상태는 plan(weekTasks)에서 실시간.
+  const messageById = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const t of weeklyQ.data?.tasks ?? []) m.set(t.id, t.message);
+    return m;
+  }, [weeklyQ.data]);
 
   if (!key) {
     return (
@@ -1977,7 +1990,9 @@ function DayPanel({
             <ThemeIcon size={26} radius="md" color="green" variant="light">
               <IconCalendarPlus size={14} />
             </ThemeIcon>
-            <Title order={4}>{dayjs(selected).format('M월 D일 (ddd)')}</Title>
+            <Title order={4}>
+            {dayjs(selected).format('M월 D일')} ({KOR_WEEKDAYS[dayjs(selected).day()]})
+          </Title>
           </Group>
           {delayable.length > 0 && (
             <Group gap={6} wrap="nowrap" align="center">
@@ -1990,7 +2005,10 @@ function DayPanel({
                 color="green"
                 leftSection={<IconCheck size={12} />}
                 loading={bulkDoneMut.isPending}
-                onClick={() => bulkDoneMut.mutate(delayable.map((t) => t.id))}
+                onClick={() => {
+                  setBulkDelayOpen(false);
+                  bulkDoneMut.mutate(delayable.map((t) => t.id));
+                }}
               >
                 완료
               </Button>
@@ -2155,43 +2173,57 @@ function DayPanel({
           </Group>
         </Box>
 
-        {weeklyQ.data && (
-          <Alert
-            color="yellow"
-            variant="light"
-            radius="md"
-            icon={<IconBulb size={16} />}
-            title={`이번 주 할 일 (${dayjs(weeklyQ.data.weekStart).format('M.D')}~${dayjs(
-              weeklyQ.data.weekEnd,
-            ).format('M.D')})`}
-            styles={{ title: { fontWeight: 700 } }}
-          >
-            {weeklyQ.data.tasks.length > 0 ? (
-              <List size="sm" spacing={2} mb={8}>
-                {weeklyQ.data.tasks.map((t) => (
-                  <List.Item key={t.id}>
-                    {t.title}
-                    <Text
-                      span
-                      size="xs"
-                      ml={6}
-                      fw={600}
-                      c={`${CATEGORY_META[t.category].color}.7`}
-                    >
-                      {CATEGORY_META[t.category].label}
-                    </Text>
-                  </List.Item>
-                ))}
-              </List>
-            ) : (
-              <Text size="sm" c="dimmed" mb={8}>
-                이번 주 예정된 작업이 없어요.
-              </Text>
-            )}
-            <Text size="sm" fw={600} c="yellow.9">
-              {weeklyQ.data.coaching}
+        {!beforeStart && (
+          <Stack gap={6}>
+            <Text size="sm" fw={700}>
+              이번 주 할 일{' '}
+              {weekStartKey && (
+                <Text span size="xs" c="dimmed" fw={500}>
+                  ({dayjs(weekStartKey).format('M.D')}~
+                  {dayjs(weekStartKey).add(6, 'day').format('M.D')})
+                </Text>
+              )}
             </Text>
-          </Alert>
+
+            {weekTasks.length === 0 ? (
+              <Alert color="yellow" variant="light" radius="md" icon={<IconBulb size={16} />}>
+                이번 주 예정된 작업이 없어요.
+              </Alert>
+            ) : (
+              weekTasks.map((t) => {
+                const done = t.status === 'done';
+                const message = messageById.get(t.id) ?? `${t.title} 준비를 챙겨보세요.`;
+                return (
+                  <Alert
+                    key={t.id}
+                    color={done ? 'gray' : 'yellow'}
+                    variant="light"
+                    radius="md"
+                    py={8}
+                    icon={done ? <IconCheck size={16} /> : <IconBulb size={16} />}
+                    style={done ? { opacity: 0.65 } : undefined}
+                  >
+                    <Group gap={6} mb={3}>
+                      <Text
+                        span
+                        size="xs"
+                        fw={600}
+                        c={done ? 'gray.5' : `${CATEGORY_META[t.category].color}.7`}
+                      >
+                        {CATEGORY_META[t.category].label}
+                      </Text>
+                      <Text span size="xs" c="dimmed">
+                        {dayjs(t.date).format('M.D')}({KOR_WEEKDAYS[dayjs(t.date).day()]})
+                      </Text>
+                    </Group>
+                    <Text size="sm" c={done ? 'dimmed' : undefined}>
+                      {message}
+                    </Text>
+                  </Alert>
+                );
+              })
+            )}
+          </Stack>
         )}
       </Stack>
     </Card>
@@ -2228,11 +2260,7 @@ function TaskRow({
       <Group justify="space-between" wrap="nowrap" align="flex-start">
         <Box style={{ minWidth: 0, flex: 1 }}>
           <Group gap={6} mb={2} wrap="wrap" align="baseline">
-            <Text
-              fw={700}
-              fz={14}
-              td={task.status === 'done' ? 'line-through' : undefined}
-            >
+            <Text fw={700} fz={14}>
               {task.title}
             </Text>
             <Text size="xs" c={`${meta.color}.7`} fw={600}>
@@ -2267,16 +2295,19 @@ function TaskRow({
             color="green"
             leftSection={<IconCheck size={12} />}
             disabled={pending}
-            onClick={() => onStatus(task.status === 'done' ? 'planned' : 'done')}
+            onClick={() => {
+              setDelayOpen(false);
+              onStatus(task.status === 'done' ? 'planned' : 'done');
+            }}
           >
-            {task.status === 'done' ? '완료 취소' : '완료'}
+            {task.status === 'done' ? '취소' : '완료'}
           </Button>
           <Button
             size="compact-xs"
             variant="light"
             color="orange"
             leftSection={<IconClock size={12} />}
-            disabled={pending}
+            disabled={pending || task.status === 'done'}
             onClick={() => setDelayOpen((v) => !v)}
           >
             지연
@@ -2284,7 +2315,7 @@ function TaskRow({
         </Group>
       </Group>
 
-      {delayOpen && (
+      {task.status !== 'done' && delayOpen && (
         <Group gap={6} align="center" mt="sm">
           <Text size="xs" c="dimmed">
             며칠 미룰까요?
