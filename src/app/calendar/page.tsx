@@ -24,6 +24,7 @@ import {
   Divider,
   Grid,
   Group,
+  List,
   Loader,
   NumberInput,
   SegmentedControl,
@@ -31,7 +32,6 @@ import {
   SimpleGrid,
   Skeleton,
   Stack,
-  Switch,
   Tabs,
   Text,
   Textarea,
@@ -51,6 +51,7 @@ import {
   IconChevronRight,
   IconClock,
   IconExternalLink,
+  IconBulb,
   IconLayoutGrid,
   IconMapPin,
   IconNote,
@@ -70,7 +71,7 @@ import {
   delayTasksBatch,
   deleteMemoImage,
   getPlan,
-  updateSettings,
+  getWeeklyDigest,
   updateTask,
   uploadMemoImages,
   upsertMemo,
@@ -1304,7 +1305,7 @@ function PlanView({ planId, tabs }: { planId: number; tabs?: ReactNode }) {
       <Container size="xl">
         <Stack gap="lg">
           {tabs}
-          <PlanHeader plan={plan} planId={planId} onChange={setPlan} />
+          <PlanHeader plan={plan} />
           <Grid gutter="lg" align="stretch">
             <Grid.Col span={{ base: 12, md: 6 }}>
               <PlanCalendar
@@ -1330,20 +1331,7 @@ function PlanView({ planId, tabs }: { planId: number; tabs?: ReactNode }) {
   );
 }
 
-function PlanHeader({
-  plan,
-  planId,
-  onChange,
-}: {
-  plan: FarmPlan;
-  planId: number;
-  onChange: (p: FarmPlan) => void;
-}) {
-  const settingsMut = useMutation({
-    mutationFn: (v: boolean) => updateSettings(planId, v),
-    onSuccess: onChange,
-  });
-
+function PlanHeader({ plan }: { plan: FarmPlan }) {
   const visitValue =
     (plan.visitDays?.length ?? 0) > 0
       ? `${[...(plan.visitDays ?? [])]
@@ -1392,14 +1380,6 @@ function PlanHeader({
             {plan.cropName} 농사 계획
           </Title>
         </Box>
-        <Switch
-          label="완료/지연 표시"
-          description="켜면 작업을 완료·지연 처리하고 일정이 자동 조정됩니다"
-          color="green"
-          checked={plan.trackProgress}
-          onChange={(e) => settingsMut.mutate(e.currentTarget.checked)}
-          disabled={settingsMut.isPending}
-        />
       </Group>
       {/* 요약 행: 가로 배열. 각 칸 안에서 라벨(왼쪽 끝) ↔ 값(오른쪽 끝) 양쪽 정렬, 칸 사이 세로 구분선 */}
       <Group gap="md" mt="md" wrap="nowrap" align="stretch">
@@ -1968,6 +1948,17 @@ function DayPanel({
       notifications.show({ color: 'red', message: '사진 삭제에 실패했습니다.' }),
   });
 
+  // 선택일이 속한 주(월요일)를 키로 주간 다이제스트(할 일 3 + 코칭) 조회.
+  const weekStartKey = selected
+    ? dayjs(selected).subtract((dayjs(selected).day() + 6) % 7, 'day').format(FMT)
+    : null;
+  const weeklyQ = useQuery({
+    queryKey: ['weekly', planId, weekStartKey],
+    queryFn: () => getWeeklyDigest(planId, weekStartKey!),
+    enabled: !!weekStartKey,
+    staleTime: 30 * 60_000,
+  });
+
   if (!key) {
     return (
       <Card radius="lg" p="lg" withBorder bg="white">
@@ -1988,7 +1979,7 @@ function DayPanel({
             </ThemeIcon>
             <Title order={4}>{dayjs(selected).format('M월 D일 (ddd)')}</Title>
           </Group>
-          {plan.trackProgress && delayable.length > 0 && (
+          {delayable.length > 0 && (
             <Group gap={6} wrap="nowrap" align="center">
               <Text size="xs" c="dimmed">
                 전체
@@ -2069,7 +2060,6 @@ function DayPanel({
               <TaskRow
                 key={t.id}
                 task={t}
-                trackProgress={plan.trackProgress}
                 pending={taskMut.isPending}
                 onStatus={(status, delayDays) =>
                   taskMut.mutate({ taskId: t.id, status, delayDays })
@@ -2164,6 +2154,45 @@ function DayPanel({
             </Button>
           </Group>
         </Box>
+
+        {weeklyQ.data && (
+          <Alert
+            color="yellow"
+            variant="light"
+            radius="md"
+            icon={<IconBulb size={16} />}
+            title={`이번 주 할 일 (${dayjs(weeklyQ.data.weekStart).format('M.D')}~${dayjs(
+              weeklyQ.data.weekEnd,
+            ).format('M.D')})`}
+            styles={{ title: { fontWeight: 700 } }}
+          >
+            {weeklyQ.data.tasks.length > 0 ? (
+              <List size="sm" spacing={2} mb={8}>
+                {weeklyQ.data.tasks.map((t) => (
+                  <List.Item key={t.id}>
+                    {t.title}
+                    <Text
+                      span
+                      size="xs"
+                      ml={6}
+                      fw={600}
+                      c={`${CATEGORY_META[t.category].color}.7`}
+                    >
+                      {CATEGORY_META[t.category].label}
+                    </Text>
+                  </List.Item>
+                ))}
+              </List>
+            ) : (
+              <Text size="sm" c="dimmed" mb={8}>
+                이번 주 예정된 작업이 없어요.
+              </Text>
+            )}
+            <Text size="sm" fw={600} c="yellow.9">
+              {weeklyQ.data.coaching}
+            </Text>
+          </Alert>
+        )}
       </Stack>
     </Card>
   );
@@ -2171,12 +2200,10 @@ function DayPanel({
 
 function TaskRow({
   task,
-  trackProgress,
   pending,
   onStatus,
 }: {
   task: FarmTask;
-  trackProgress: boolean;
   pending: boolean;
   onStatus: (status: FarmTask['status'], delayDays?: number) => void;
 }) {
@@ -2233,33 +2260,31 @@ function TaskRow({
             </Text>
           )}
         </Box>
-        {trackProgress && (
-          <Group gap={6} wrap="nowrap" style={{ flexShrink: 0 }}>
-            <Button
-              size="compact-xs"
-              variant={task.status === 'done' ? 'filled' : 'light'}
-              color="green"
-              leftSection={<IconCheck size={12} />}
-              disabled={pending}
-              onClick={() => onStatus(task.status === 'done' ? 'planned' : 'done')}
-            >
-              {task.status === 'done' ? '완료 취소' : '완료'}
-            </Button>
-            <Button
-              size="compact-xs"
-              variant="light"
-              color="orange"
-              leftSection={<IconClock size={12} />}
-              disabled={pending}
-              onClick={() => setDelayOpen((v) => !v)}
-            >
-              지연
-            </Button>
-          </Group>
-        )}
+        <Group gap={6} wrap="nowrap" style={{ flexShrink: 0 }}>
+          <Button
+            size="compact-xs"
+            variant={task.status === 'done' ? 'filled' : 'light'}
+            color="green"
+            leftSection={<IconCheck size={12} />}
+            disabled={pending}
+            onClick={() => onStatus(task.status === 'done' ? 'planned' : 'done')}
+          >
+            {task.status === 'done' ? '완료 취소' : '완료'}
+          </Button>
+          <Button
+            size="compact-xs"
+            variant="light"
+            color="orange"
+            leftSection={<IconClock size={12} />}
+            disabled={pending}
+            onClick={() => setDelayOpen((v) => !v)}
+          >
+            지연
+          </Button>
+        </Group>
       </Group>
 
-      {trackProgress && delayOpen && (
+      {delayOpen && (
         <Group gap={6} align="center" mt="sm">
           <Text size="xs" c="dimmed">
             며칠 미룰까요?

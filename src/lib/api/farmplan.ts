@@ -4,7 +4,20 @@ import type {
   FarmPlanBatchResult,
   FarmPlanCreate,
   TaskStatus,
+  WeeklyDigest,
 } from '@/lib/types';
+
+// 이번 주(기준일이 속한 주) 할 일 3가지 + LLM 코칭 한 줄.
+export async function getWeeklyDigest(
+  planId: number,
+  dateStr: string,
+): Promise<WeeklyDigest> {
+  const { data } = await apiClient.get<WeeklyDigest>(
+    `/api/v1/plans/${planId}/weekly`,
+    { params: { date: dateStr }, timeout: 20_000 },
+  );
+  return data;
+}
 
 // 계획 생성: 농사로 PDF 다운 → 임베딩 → RAG → GPT 로 길어 타임아웃을 넉넉히.
 export async function createPlan(payload: FarmPlanCreate): Promise<FarmPlan> {

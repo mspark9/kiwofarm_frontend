@@ -226,6 +226,22 @@ export interface FarmPlan {
   memos: TaskMemo[];
 }
 
+// 주간 다이제스트 (이번 주 할 일 3가지 + 코칭 한 줄)
+export interface WeeklyTask {
+  id: number;
+  title: string;
+  category: TaskCategory;
+  date: string; // YYYY-MM-DD
+  status: TaskStatus;
+}
+
+export interface WeeklyDigest {
+  weekStart: string; // 월요일
+  weekEnd: string; // 일요일
+  tasks: WeeklyTask[];
+  coaching: string;
+}
+
 // 여러 작물 계획 일괄 생성 (POST /api/v1/plans/batch)
 export interface BatchFailure {
   index: number; // 입력 배열에서의 위치
