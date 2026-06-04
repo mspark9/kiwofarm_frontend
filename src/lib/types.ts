@@ -225,3 +225,100 @@ export interface FarmPlan {
   tasks: FarmTask[];
   memos: TaskMemo[];
 }
+
+// ───────────── 수확 인증 · 보상 (도감/뱃지/Streak) ─────────────
+
+export interface HarvestRecipe {
+  name: string;
+  nutrients: Record<string, string>;
+}
+
+export interface HarvestCardLink {
+  label: string;
+  url: string;
+}
+
+export interface HarvestCard {
+  cropSlug: string;
+  cropName: string;
+  category: string;
+  source: 'nongsaro:monthFd' | 'ai';
+  storage: string;
+  eating: string;
+  nutrition: string;
+  seasonMonths: number[];
+  recipes: HarvestRecipe[];
+  links: HarvestCardLink[];
+}
+
+export interface CollectionEntry {
+  cropSlug: string;
+  cropName: string;
+  category: string;
+  difficulty?: number | null;
+  collected: boolean;
+  harvestCount: number;
+  firstHarvestedAt?: string | null;
+  lastHarvestedAt?: string | null;
+}
+
+export interface CollectionOut {
+  totalCrops: number;
+  collectedCrops: number;
+  totalHarvests: number;
+  entries: CollectionEntry[];
+}
+
+export interface BadgeOut {
+  id: string;
+  emoji: string;
+  name: string;
+  description: string;
+  achieved: boolean;
+  progress: number; // 0~1
+  current: number;
+  threshold: number;
+}
+
+export interface StreakOut {
+  current: number;
+  best: number;
+  todayLogged: boolean;
+  totalActiveDays: number;
+}
+
+export interface CropCompareOut {
+  cropSlug: string;
+  cropName: string;
+  growers: number;
+  completionRate: number;
+  harvested: boolean;
+  message: string;
+}
+
+export interface CompareOut {
+  weeklyActiveDays: number;
+  topPercent: number; // 상위 X%
+  aboveMedian: boolean;
+  message: string; // 긍정형 문구 (중앙값 미만이면 격려)
+  communitySize: number;
+  crop?: CropCompareOut | null;
+}
+
+export interface RewardsSummary {
+  collection: CollectionOut;
+  badges: BadgeOut[];
+  streak: StreakOut;
+  compare?: CompareOut | null;
+}
+
+export interface BatchFailure {
+  index: number; // 입력 배열에서의 위치
+  cropName: string;
+  error: string;
+}
+
+export interface FarmPlanBatchResult {
+  created: FarmPlan[];
+  failed: BatchFailure[];
+}

@@ -10,7 +10,6 @@ export const CROPS = ['tomato', 'sweetpotato', 'blueberry'] as const;
 export type CropId = (typeof CROPS)[number];
 
 export const ONBOARDING_STORAGE_KEY = 'kiwofarm:onboarding';
-export const SALES_STORAGE_KEY = 'kiwofarm:sales';
 
 export const PREFERRED_CROP_OPTIONS = [
   { value: 'tomato', label: '토마토' },
