@@ -142,7 +142,7 @@ function Hero() {
               <Group gap="md" mt="xs">
                 <Button
                   component={Link}
-                  href="/onboarding"
+                  href="/planting"
                   size="lg"
                   color="green"
                   radius="md"
@@ -623,7 +623,7 @@ function FinalCTA() {
           <Group gap="sm" mt="sm">
             <Button
               component={Link}
-              href="/onboarding"
+              href="/planting"
               size="xl"
               radius="md"
               color="white"
@@ -687,7 +687,7 @@ function Footer() {
             <Anchor component={Link} href="/#features" size="sm" c="dimmed">
               기능
             </Anchor>
-            <Anchor component={Link} href="/onboarding" size="sm" c="dimmed">
+            <Anchor component={Link} href="/planting" size="sm" c="dimmed">
               추천받기
             </Anchor>
             <Anchor component={Link} href="/dashboard" size="sm" c="dimmed">

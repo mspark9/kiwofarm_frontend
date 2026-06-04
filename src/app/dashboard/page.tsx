@@ -34,7 +34,7 @@ const TILES: Tile[] = [
   {
     title: 'AI 작목 추천',
     desc: '지역·자본·시설로 적합 작목 TOP 3 가려내기',
-    href: '/onboarding',
+    href: '/planting',
     icon: <IconLeaf size={22} />,
     color: 'green',
     meta: 'XGBoost · 우수농가 112호',

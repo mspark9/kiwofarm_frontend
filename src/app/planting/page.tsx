@@ -1,0 +1,305 @@
+'use client';
+
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import {
+  Badge,
+  Box,
+  Button,
+  Card,
+  Collapse,
+  Container,
+  Group,
+  MultiSelect,
+  NumberInput,
+  SegmentedControl,
+  Stack,
+  Stepper,
+  Text,
+  ThemeIcon,
+  Title,
+  UnstyledButton,
+} from '@mantine/core';
+import { useForm } from '@mantine/form';
+import {
+  IconAdjustments,
+  IconArrowLeft,
+  IconArrowRight,
+  IconBuildingStore,
+  IconCalendarTime,
+  IconChevronDown,
+  IconClock,
+  IconCompass,
+  IconLeaf,
+  IconMapPin,
+  IconRuler2,
+  IconSparkles,
+  IconSun,
+} from '@tabler/icons-react';
+import type { Direction, PlantingInput } from '@/lib/api/planting';
+import {
+  DIRECTION_OPTIONS,
+  EXP_OPTIONS,
+  FACILITY_OPTIONS,
+  FREQ_OPTIONS,
+  PLACE_OPTIONS,
+  PREF_OPTIONS,
+  START_OPTIONS,
+  SUN_OPTIONS,
+} from '@/lib/planting/options';
+import {
+  defaultPlantingInput,
+  loadPlantingInput,
+  savePlantingInput,
+} from '@/lib/planting/storage';
+import { RegionPicker } from '@/components/shared/RegionPicker';
+
+// 저장된 sigungu("경기도 성남시") → province / city 분해.
+function splitSigungu(sigungu: string): { province: string; city: string } {
+  const i = sigungu.indexOf(' ');
+  if (i < 0) return { province: '경기도', city: '' };
+  return { province: sigungu.slice(0, i), city: sigungu.slice(i + 1) };
+}
+
+type FormValues = Omit<PlantingInput, 'sigungu'>;
+
+export default function PlantingWizardPage() {
+  const router = useRouter();
+  const saved = loadPlantingInput();
+  const initRegion = splitSigungu(saved?.sigungu ?? '');
+
+  const [province, setProvince] = useState(initRegion.province);
+  const [city, setCity] = useState(initRegion.city);
+  const [regionError, setRegionError] = useState<string | undefined>();
+  const [advanced, setAdvanced] = useState(false);
+
+  const form = useForm<FormValues>({
+    initialValues: {
+      place: saved?.place ?? defaultPlantingInput.place,
+      sun_hours: saved?.sun_hours ?? defaultPlantingInput.sun_hours,
+      experience: saved?.experience ?? defaultPlantingInput.experience,
+      direction: saved?.direction ?? null,
+      area_m2: saved?.area_m2 ?? null,
+      frequency: saved?.frequency ?? null,
+      start: saved?.start ?? 'now',
+      facility: saved?.facility ?? [],
+      prefs: saved?.prefs ?? [],
+      top_n: saved?.top_n ?? 6,
+    },
+  });
+
+  const submit = () => {
+    if (!city) {
+      setRegionError('지역을 선택해 주세요');
+      return;
+    }
+    const input: PlantingInput = { ...form.values, sigungu: `${province} ${city}` };
+    savePlantingInput(input);
+    router.push('/planting/result');
+  };
+
+  return (
+    <Box bg="gray.0" mih="100vh" py={{ base: 24, md: 48 }}>
+      <Container size="sm">
+        <Stack gap="lg">
+          <Group justify="space-between" align="center">
+            <UnstyledButton component={Link} href="/">
+              <Group gap={6}>
+                <IconArrowLeft size={14} />
+                <Text size="sm" c="dimmed">
+                  홈으로
+                </Text>
+              </Group>
+            </UnstyledButton>
+            <Badge variant="light" color="green" leftSection={<IconSparkles size={12} />}>
+              심기 · 내 텃밭 맞춤 추천
+            </Badge>
+          </Group>
+
+          <Stepper active={0} color="green" size="sm" iconSize={28}>
+            <Stepper.Step label="조건 입력" description="장소·일조·경험" />
+            <Stepper.Step label="작물 추천" description="이번 달 적기 TOP" />
+            <Stepper.Step label="챗봇 상담" description="궁금증 해결" />
+          </Stepper>
+
+          <Box>
+            <Title order={3} fz={{ base: 22, md: 26 }} fw={800}>
+              어디서 무엇을 키우시나요?
+            </Title>
+            <Text c="dimmed" size="sm" mt={4}>
+              필수 항목만으로 추천이 가능합니다. 자세히 입력할수록 정확해집니다.
+            </Text>
+          </Box>
+
+          {/* 필수 */}
+          <Card radius="lg" p="lg" withBorder bg="white">
+            <Stack gap="lg">
+              <FieldRow icon={<IconMapPin size={16} />} label="지역 (시·군·구)">
+                <RegionPicker
+                  value={city}
+                  province={province}
+                  onChange={(c, p) => {
+                    setProvince(p);
+                    setCity(c);
+                    setRegionError(undefined);
+                  }}
+                  error={regionError}
+                />
+              </FieldRow>
+
+              <FieldRow icon={<IconBuildingStore size={16} />} label="장소">
+                <SegmentedControl
+                  fullWidth
+                  data={PLACE_OPTIONS}
+                  {...form.getInputProps('place')}
+                />
+              </FieldRow>
+
+              <FieldRow icon={<IconCompass size={16} />} label="방향 (일조 핵심)">
+                <SegmentedControl
+                  fullWidth
+                  value={form.values.direction ?? ''}
+                  onChange={(v) => form.setFieldValue('direction', (v || null) as Direction | null)}
+                  data={[
+                    { label: '선택 안 함', value: '' },
+                    ...DIRECTION_OPTIONS.map((d) => ({ label: d, value: d })),
+                  ]}
+                />
+              </FieldRow>
+
+              <FieldRow icon={<IconSun size={16} />} label="하루 직사광 시간">
+                <SegmentedControl fullWidth data={SUN_OPTIONS} {...form.getInputProps('sun_hours')} />
+              </FieldRow>
+
+              <FieldRow icon={<IconRuler2 size={16} />} label="규모 (면적, 선택)">
+                <NumberInput
+                  min={0}
+                  step={0.5}
+                  decimalScale={1}
+                  suffix=" ㎡"
+                  placeholder="대략적인 면적 (화분만 쓰면 비워두세요)"
+                  value={form.values.area_m2 ?? undefined}
+                  onChange={(v) =>
+                    form.setFieldValue('area_m2', v === '' || v === undefined ? null : Number(v))
+                  }
+                />
+              </FieldRow>
+
+              <FieldRow icon={<IconLeaf size={16} />} label="경험">
+                <SegmentedControl fullWidth data={EXP_OPTIONS} {...form.getInputProps('experience')} />
+              </FieldRow>
+            </Stack>
+          </Card>
+
+          {/* 접이식 고급 옵션 */}
+          <Card radius="lg" p="lg" withBorder bg="white">
+            <UnstyledButton onClick={() => setAdvanced((v) => !v)} w="100%">
+              <Group justify="space-between">
+                <Group gap={8}>
+                  <ThemeIcon size={22} radius="xl" variant="light" color="green">
+                    <IconAdjustments size={13} />
+                  </ThemeIcon>
+                  <Text size="sm" fw={700}>
+                    더 정확하게 (선택)
+                  </Text>
+                </Group>
+                <IconChevronDown
+                  size={16}
+                  style={{
+                    transform: advanced ? 'rotate(180deg)' : 'none',
+                    transition: 'transform 160ms ease',
+                  }}
+                />
+              </Group>
+            </UnstyledButton>
+
+            <Collapse in={advanced}>
+              <Stack gap="lg" mt="lg">
+                <FieldRow icon={<IconCalendarTime size={16} />} label="관리 가능 빈도">
+                  <SegmentedControl
+                    fullWidth
+                    value={form.values.frequency ?? ''}
+                    onChange={(v) => form.setFieldValue('frequency', v || null)}
+                    data={[
+                      { label: '선택 안 함', value: '' },
+                      ...FREQ_OPTIONS.map((f) => ({ label: f, value: f })),
+                    ]}
+                  />
+                </FieldRow>
+
+                <FieldRow icon={<IconClock size={16} />} label="시작 시점">
+                  <SegmentedControl fullWidth data={START_OPTIONS} {...form.getInputProps('start')} />
+                </FieldRow>
+
+                <FieldRow icon={<IconBuildingStore size={16} />} label="보유 시설">
+                  <MultiSelect
+                    data={FACILITY_OPTIONS}
+                    placeholder="화분·플랜터·비닐터널 등"
+                    {...form.getInputProps('facility')}
+                    clearable
+                  />
+                </FieldRow>
+
+                <FieldRow icon={<IconLeaf size={16} />} label="선호 작물군">
+                  <MultiSelect
+                    data={PREF_OPTIONS}
+                    placeholder="잎채소·열매채소·뿌리채소·허브"
+                    {...form.getInputProps('prefs')}
+                    clearable
+                  />
+                </FieldRow>
+              </Stack>
+            </Collapse>
+          </Card>
+
+          <Card radius="md" p="sm" withBorder bg="green.0" style={{ borderColor: 'var(--mantine-color-green-2)' }}>
+            <Group gap="xs" wrap="nowrap">
+              <ThemeIcon size={22} radius="xl" color="green" variant="light">
+                <IconSparkles size={12} />
+              </ThemeIcon>
+              <Text size="xs" c="green.9" lh={1.6}>
+                농사로 농작업일정 매트릭스로 이번 달 심기 적기를 가려내고, AI가 내 환경 맞춤 설명을 더합니다.
+              </Text>
+            </Group>
+          </Card>
+
+          <Group justify="flex-end">
+            <Button
+              color="green"
+              size="md"
+              rightSection={<IconArrowRight size={16} />}
+              onClick={submit}
+            >
+              AI 추천받기
+            </Button>
+          </Group>
+        </Stack>
+      </Container>
+    </Box>
+  );
+}
+
+function FieldRow({
+  icon,
+  label,
+  children,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Box>
+      <Group gap={6} mb={6}>
+        <ThemeIcon size={20} radius="xl" variant="light" color="gray">
+          {icon}
+        </ThemeIcon>
+        <Text size="sm" fw={600}>
+          {label}
+        </Text>
+      </Group>
+      {children}
+    </Box>
+  );
+}
