@@ -16,6 +16,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import {
   ActionIcon,
   Alert,
+  Anchor,
   Badge,
   Box,
   Button,
@@ -43,6 +44,7 @@ import { Calendar, DatePickerInput } from '@mantine/dates';
 import { notifications } from '@mantine/notifications';
 import {
   IconAlertCircle,
+  IconAlertTriangle,
   IconArrowLeft,
   IconCalendarPlus,
   IconCheck,
@@ -70,6 +72,7 @@ import {
   delayTasksBatch,
   deleteMemoImage,
   getPlan,
+  getPlanAlerts,
   getWeeklyDigest,
   updateTask,
   uploadMemoImages,
@@ -1946,14 +1949,28 @@ function DayPanel({
     ? dayjs(selected).subtract((dayjs(selected).day() + 6) % 7, 'day')
     : null;
   const weekStartKey = weekStart ? weekStart.format(FMT) : null;
-  // 그 주(월~일)가 통째로 계획 시작일 이전이면 알림을 띄우지 않는다.
+  // 계획 종료일(가장 늦은 작업 종료일 = 수확 마무리).
+  const planEndKey = useMemo(() => {
+    let last = plan.startDate;
+    for (const t of plan.tasks) if (t.endDate > last) last = t.endDate;
+    return last;
+  }, [plan.tasks, plan.startDate]);
+  // 선택한 주(월~일)가 통째로 계획 시작일 이전이거나 수확일 이후면 알림을 띄우지 않는다.
   const beforeStart = weekStart
     ? weekStart.add(6, 'day').isBefore(dayjs(plan.startDate), 'day')
     : false;
+  const afterEnd = weekStart ? weekStart.isAfter(dayjs(planEndKey), 'day') : false;
+  const outOfSeason = beforeStart || afterEnd;
   const weeklyQ = useQuery({
     queryKey: ['weekly', planId, weekStartKey],
     queryFn: () => getWeeklyDigest(planId, weekStartKey!),
-    enabled: !!weekStartKey && !beforeStart,
+    enabled: !!weekStartKey && !outOfSeason,
+    staleTime: 30 * 60_000,
+  });
+  const alertsQ = useQuery({
+    queryKey: ['plan-alerts', planId],
+    queryFn: () => getPlanAlerts(planId),
+    enabled: !outOfSeason,
     staleTime: 30 * 60_000,
   });
   // 그 주(월~일) 작업을 plan 에서 직접 추려 표시(완료 처리 즉시 회색 반영). 코칭만 서버 사용.
@@ -2173,7 +2190,7 @@ function DayPanel({
           </Group>
         </Box>
 
-        {!beforeStart && (
+        {!outOfSeason && (
           <Stack gap={6}>
             <Text size="sm" fw={700}>
               이번 주 할 일{' '}
@@ -2225,6 +2242,36 @@ function DayPanel({
             )}
           </Stack>
         )}
+
+        {!outOfSeason &&
+          (alertsQ.data?.alerts ?? []).map((a, i) => (
+          <Alert
+            key={i}
+            color={a.severity === 'danger' ? 'red' : a.severity === 'warn' ? 'yellow' : 'blue'}
+            variant="light"
+            radius="md"
+            icon={<IconAlertTriangle size={18} />}
+            title={a.title}
+            styles={{ title: { fontWeight: 700 } }}
+          >
+            <Text size="sm">{a.detail}</Text>
+            <Group gap={12} mt={6} wrap="wrap">
+              {a.date && (
+                <Text size="xs" c="dimmed">
+                  {a.date}
+                </Text>
+              )}
+              {a.link && (
+                <Anchor href={a.link} target="_blank" rel="noreferrer" size="xs" fw={600}>
+                  원문 보기
+                </Anchor>
+              )}
+              <Text size="xs" c="dimmed">
+                출처: {a.source}
+              </Text>
+            </Group>
+          </Alert>
+        ))}
       </Stack>
     </Card>
   );

@@ -1,11 +1,21 @@
 import { apiClient } from './client';
 import type {
+  AlertsResponse,
   FarmPlan,
   FarmPlanBatchResult,
   FarmPlanCreate,
   TaskStatus,
   WeeklyDigest,
 } from '@/lib/types';
+
+// 위기 알림(병해충 발생정보 + 기상 특보). 작물 계획의 지역 기준.
+export async function getPlanAlerts(planId: number): Promise<AlertsResponse> {
+  const { data } = await apiClient.get<AlertsResponse>(
+    `/api/v1/plans/${planId}/alerts`,
+    { timeout: 15_000 },
+  );
+  return data;
+}
 
 // 이번 주(기준일이 속한 주) 할 일 3가지 + LLM 코칭 한 줄.
 export async function getWeeklyDigest(

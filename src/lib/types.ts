@@ -242,6 +242,21 @@ export interface WeeklyDigest {
   tasks: WeeklyTask[];
 }
 
+// 위기 알림 (병해충 발생정보 + 기상 특보) — 트윈의 CrisisAlert 와 구분해 PlanAlert.
+export interface PlanAlert {
+  type: string; // pest | weather
+  severity: string; // info | warn | danger
+  title: string;
+  detail: string;
+  source: string;
+  link?: string | null;
+  date?: string | null;
+}
+
+export interface AlertsResponse {
+  alerts: PlanAlert[];
+}
+
 // 여러 작물 계획 일괄 생성 (POST /api/v1/plans/batch)
 export interface BatchFailure {
   index: number; // 입력 배열에서의 위치
