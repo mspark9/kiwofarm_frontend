@@ -1,11 +1,28 @@
 import { apiClient } from './client';
-import type { FarmPlan, FarmPlanCreate, TaskStatus } from '@/lib/types';
+import type {
+  FarmPlan,
+  FarmPlanBatchResult,
+  FarmPlanCreate,
+  TaskStatus,
+} from '@/lib/types';
 
 // 계획 생성: 농사로 PDF 다운 → 임베딩 → RAG → GPT 로 길어 타임아웃을 넉넉히.
 export async function createPlan(payload: FarmPlanCreate): Promise<FarmPlan> {
   const { data } = await apiClient.post<FarmPlan>('/api/v1/plans', payload, {
     timeout: 120_000,
   });
+  return data;
+}
+
+// 여러 작물 계획을 한 번에 생성(서버에서 최대 4개 동시 처리). 개별 실패는 failed 로 보고.
+export async function createPlansBatch(
+  plans: FarmPlanCreate[],
+): Promise<FarmPlanBatchResult> {
+  const { data } = await apiClient.post<FarmPlanBatchResult>(
+    '/api/v1/plans/batch',
+    { plans },
+    { timeout: 180_000 },
+  );
   return data;
 }
 
@@ -60,5 +77,40 @@ export async function upsertMemo(
     memoDate,
     content,
   });
+  return data;
+}
+
+// 메모 삭제(텍스트 + 사진 일괄). 백엔드가 디스크 파일도 정리한다.
+export async function deleteMemo(planId: number, memoDate: string): Promise<FarmPlan> {
+  const { data } = await apiClient.delete<FarmPlan>(
+    `/api/v1/plans/${planId}/memos/${memoDate}`,
+  );
+  return data;
+}
+
+// 메모에 사진 첨부(여러 장 가능). 메모가 없으면 백엔드가 자동 생성.
+export async function uploadMemoImages(
+  planId: number,
+  memoDate: string,
+  files: File[],
+): Promise<FarmPlan> {
+  const form = new FormData();
+  for (const f of files) form.append('files', f);
+  const { data } = await apiClient.post<FarmPlan>(
+    `/api/v1/plans/${planId}/memos/${memoDate}/images`,
+    form,
+    { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60_000 },
+  );
+  return data;
+}
+
+// 메모 사진 한 장 삭제(파일 + DB).
+export async function deleteMemoImage(
+  planId: number,
+  imageId: number,
+): Promise<FarmPlan> {
+  const { data } = await apiClient.delete<FarmPlan>(
+    `/api/v1/plans/${planId}/memos/images/${imageId}`,
+  );
   return data;
 }

@@ -194,10 +194,19 @@ export interface FarmTask {
   sourceNote?: string | null;
 }
 
+export interface MemoImage {
+  id: number;
+  url: string; // 정적 서빙 경로(/uploads/...). 표시 시 API 호스트 prefix 필요(mediaUrl).
+  originalName?: string | null;
+  contentType?: string | null;
+  size: number;
+}
+
 export interface TaskMemo {
   id: number;
   memoDate: string; // YYYY-MM-DD
   content: string;
+  images: MemoImage[];
 }
 
 export interface FarmPlan {
@@ -215,6 +224,18 @@ export interface FarmPlan {
   trackProgress: boolean;
   tasks: FarmTask[];
   memos: TaskMemo[];
+}
+
+// 여러 작물 계획 일괄 생성 (POST /api/v1/plans/batch)
+export interface BatchFailure {
+  index: number; // 입력 배열에서의 위치
+  cropName: string;
+  error: string;
+}
+
+export interface FarmPlanBatchResult {
+  created: FarmPlan[];
+  failed: BatchFailure[];
 }
 
 // ───────────── Shipping dashboard (existing) ─────────────

@@ -1,5 +1,11 @@
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000';
 
+// 백엔드가 돌려주는 업로드 경로(/uploads/...)를 절대 URL로. 이미 절대 URL이면 그대로.
+export function mediaUrl(path: string): string {
+  if (!path) return path;
+  return /^https?:\/\//.test(path) ? path : `${API_BASE_URL}${path}`;
+}
+
 export const CROPS = ['tomato', 'sweetpotato', 'blueberry'] as const;
 export type CropId = (typeof CROPS)[number];
 

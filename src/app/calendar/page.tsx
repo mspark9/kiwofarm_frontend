@@ -2,8 +2,17 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { type CSSProperties, Fragment, Suspense, useEffect, useMemo, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  type CSSProperties,
+  Fragment,
+  type ReactNode,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ActionIcon,
   Alert,
@@ -23,6 +32,7 @@ import {
   Skeleton,
   Stack,
   Switch,
+  Tabs,
   Text,
   Textarea,
   TextInput,
@@ -31,7 +41,6 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { Calendar, DatePickerInput } from '@mantine/dates';
-import { useForm } from '@mantine/form';
 import { notifications } from '@mantine/notifications';
 import {
   IconAlertCircle,
@@ -41,28 +50,40 @@ import {
   IconChevronLeft,
   IconChevronRight,
   IconClock,
+  IconExternalLink,
+  IconLayoutGrid,
   IconMapPin,
   IconNote,
   IconPencil,
+  IconPhoto,
+  IconPlus,
   IconSearch,
   IconSparkles,
+  IconTrash,
   IconX,
 } from '@tabler/icons-react';
 import dayjs from 'dayjs';
 import { searchCrops } from '@/lib/api/crops';
 import {
   createPlan,
+  createPlansBatch,
   delayTasksBatch,
+  deleteMemoImage,
   getPlan,
   updateSettings,
   updateTask,
+  uploadMemoImages,
   upsertMemo,
 } from '@/lib/api/farmplan';
+import { mediaUrl } from '@/lib/constants';
+import { usePlanIds } from '@/lib/planStore';
 import { PROVINCE_OPTIONS, getCitiesByProvince } from '@/lib/regions';
 import type {
   AreaUnit,
+  BatchFailure,
   CropOption,
   FarmPlan,
+  FarmPlanCreate,
   FarmTask,
   TaskCategory,
 } from '@/lib/types';
@@ -75,7 +96,7 @@ const CATEGORY_META: Record<TaskCategory, { label: string; color: string }> = {
   fertilize: { label: '시비', color: 'lime' },
   water: { label: '물·관수', color: 'cyan' },
   pest: { label: '병해충 예방', color: 'red' },
-  harvest: { label: '수확·저장', color: 'orange' },
+  harvest: { label: '수확', color: 'orange' },
   etc: { label: '기타', color: 'gray' },
 };
 
@@ -102,15 +123,61 @@ const WEEKDAY_LABEL: Record<number, string> = Object.fromEntries(
 const KOR_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 const MIN_YEAR = 1970; // 달력 연도 하한
 
+// 색은 '할 일 카테고리' 구분 전용. 작물(계획)은 색이 아니라 이름·회색톤 배지로 구분한다.
+interface LoadedPlan {
+  id: number;
+  plan: FarmPlan;
+}
+
 function CalendarRoot() {
   const params = useSearchParams();
   const planIdParam = params.get('planId');
-  const planId = planIdParam ? Number(planIdParam) : null;
+  const viewParam = params.get('view');
+  const parsed = planIdParam ? Number(planIdParam) : null;
+  const planId = parsed && !Number.isNaN(parsed) ? parsed : null;
+  const showAll = viewParam === 'all';
 
-  if (planId && !Number.isNaN(planId)) {
-    return <PlanView planId={planId} />;
+  const { ids, ready, add, remove } = usePlanIds();
+
+  // 생성 후 리다이렉트·공유 링크로 들어온 계획 ID 를 보관 목록에 등록
+  useEffect(() => {
+    if (planId) add(planId);
+  }, [planId, add]);
+
+  // 탭·모두보기를 위해 보관된 모든 계획을 로드 (PlanView 와 동일 queryKey → 캐시 공유)
+  const planQueries = useQueries({
+    queries: ids.map((id) => ({
+      queryKey: ['farmplan', id],
+      queryFn: () => getPlan(id),
+      retry: false,
+      staleTime: 30_000,
+    })),
+  });
+
+  // 404 등으로 로드 실패한 계획(삭제·DB 초기화)은 보관 목록에서 정리
+  const errorKey = ids.filter((_, i) => planQueries[i]?.isError).join(',');
+  useEffect(() => {
+    if (!errorKey) return;
+    for (const id of errorKey.split(',')) remove(Number(id));
+  }, [errorKey, remove]);
+
+  const loaded: LoadedPlan[] = ids
+    .map((id, i) => ({ id, plan: planQueries[i]?.data }))
+    .filter((p): p is { id: number; plan: FarmPlan } => Boolean(p.plan))
+    .map((p) => ({ id: p.id, plan: p.plan }));
+
+  const tabs =
+    ready && loaded.length > 0 ? (
+      <PlanTabs plans={loaded} activeId={showAll ? null : planId} showAll={showAll} />
+    ) : null;
+
+  if (showAll) {
+    return <AllPlansView plans={loaded} loading={planQueries.some((q) => q.isLoading)} tabs={tabs} />;
   }
-  return <SetupForm />;
+  if (planId) {
+    return <PlanView planId={planId} tabs={tabs} />;
+  }
+  return <SetupForm tabs={tabs} />;
 }
 
 export default function CalendarPage() {
@@ -131,7 +198,10 @@ export default function CalendarPage() {
 
 // ─────────────────────────── 설정 폼 ───────────────────────────
 
-interface SetupValues {
+// 작물별로 따로 설정하는 한 줄(작목 + 그 작물만의 시작일·지역·면적·방문요일).
+interface CropEntry {
+  key: string; // item_code:kind_code 
+  crop: CropOption;
   startDate: Date | null;
   province: string | null;
   city: string | null;
@@ -140,31 +210,104 @@ interface SetupValues {
   visitDays: number[];
 }
 
-function SetupForm() {
-  const router = useRouter();
-  const [crop, setCrop] = useState<CropOption | null>(null);
+const cropEntryKey = (c: CropOption) => `${c.item_code}:${c.kind_code}`;
 
-  const form = useForm<SetupValues>({
-    initialValues: {
-      startDate: new Date(),
-      province: null,
-      city: null,
-      area: 300,
-      areaUnit: 'pyeong',
-      visitDays: [6], // 기본: 주말(토)
-    },
-    validate: {
-      startDate: (v) => (v ? null : '시작 날짜를 선택하세요'),
-      province: (v) => (v ? null : '지역(시·도)을 선택하세요'),
-      area: (v) => (typeof v === 'number' && v > 0 ? null : '면적을 입력하세요'),
-    },
+interface DraftValues {
+  startDate: Date | null;
+  province: string | null;
+  city: string | null;
+  area: number | '';
+  areaUnit: AreaUnit;
+  visitDays: number[];
+}
+
+function SetupForm({ tabs }: { tabs?: ReactNode }) {
+  const router = useRouter();
+  const { add } = usePlanIds();
+
+  const [crop, setCrop] = useState<CropOption | null>(null);
+  const [draft, setDraft] = useState<DraftValues>(() => ({
+    startDate: new Date(),
+    province: null,
+    city: null,
+    area: 300,
+    areaUnit: 'pyeong',
+    visitDays: [6], // 기본: 토요일
+  }));
+  const [queue, setQueue] = useState<CropEntry[]>([]);
+
+  const setDf = (patch: Partial<DraftValues>) => setDraft((d) => ({ ...d, ...patch }));
+
+  const validateDraft = (): string | null => {
+    if (!draft.startDate) return '시작 날짜를 선택하세요.';
+    if (!draft.province) return '지역(시·도)을 선택하세요.';
+    if (!(typeof draft.area === 'number' && draft.area > 0)) return '면적을 입력하세요.';
+    return null;
+  };
+
+  const draftToEntry = (c: CropOption): CropEntry => ({
+    key: cropEntryKey(c),
+    crop: c,
+    startDate: draft.startDate,
+    province: draft.province,
+    city: draft.city,
+    area: draft.area,
+    areaUnit: draft.areaUnit,
+    visitDays: draft.visitDays,
   });
 
+  // 현재 작물을 목록에 담고, 작목만 비워 다음 작물을 빠르게 입력(위치·면적·요일은 유지).
+  const addAnother = () => {
+    if (!crop) {
+      notifications.show({ color: 'red', message: '작목을 먼저 선택하세요.' });
+      return;
+    }
+    const err = validateDraft();
+    if (err) {
+      notifications.show({ color: 'red', message: err });
+      return;
+    }
+    if (queue.some((e) => e.key === cropEntryKey(crop))) {
+      notifications.show({ color: 'yellow', message: '이미 추가된 작목입니다.' });
+      return;
+    }
+    setQueue((q) => [...q, draftToEntry(crop)]);
+    setCrop(null);
+    notifications.show({ color: 'green', message: '작물을 추가했어요. 다음 작물을 선택하세요.' });
+  };
+  const removeQueued = (key: string) =>
+    setQueue((q) => q.filter((e) => e.key !== key));
+
   const createMut = useMutation({
-    mutationFn: createPlan,
-    onSuccess: (plan) => {
-      sessionStorage.setItem('kiwofarm:lastPlanId', String(plan.id));
-      router.push(`/calendar?planId=${plan.id}`);
+    // 1개면 단일 생성(해당 계획으로 이동), 2개 이상이면 배치 생성(모두 보기로 이동).
+    mutationFn: (payloads: FarmPlanCreate[]) =>
+      payloads.length === 1
+        ? createPlan(payloads[0]).then((p) => ({
+            created: [p],
+            failed: [] as BatchFailure[],
+          }))
+        : createPlansBatch(payloads),
+    onSuccess: ({ created, failed }) => {
+      if (created.length === 0) {
+        notifications.show({
+          color: 'red',
+          title: '계획 생성 실패',
+          message: '작물 계획을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.',
+        });
+        return;
+      }
+      for (const p of created) add(p.id);
+      if (failed.length > 0) {
+        notifications.show({
+          color: 'orange',
+          title: `${created.length}개 생성 · ${failed.length}개 실패`,
+          message: `${failed.map((f) => f.cropName).join(', ')} 계획 생성에 실패했어요.`,
+        });
+      }
+      sessionStorage.setItem('kiwofarm:lastPlanId', String(created[0].id));
+      router.push(
+        created.length === 1 ? `/calendar?planId=${created[0].id}` : '/calendar?view=all',
+      );
     },
     onError: () => {
       notifications.show({
@@ -175,24 +318,36 @@ function SetupForm() {
     },
   });
 
-  const onSubmit = form.onSubmit((values) => {
-    if (!crop) {
-      notifications.show({ color: 'red', message: '작목을 선택하세요.' });
+  const onSubmit = () => {
+    const all = [...queue];
+    // 입력 중인 작물이 있으면 함께 생성(따로 "추가"를 누르지 않아도 됨).
+    if (crop) {
+      const err = validateDraft();
+      if (err) {
+        notifications.show({ color: 'red', message: err });
+        return;
+      }
+      if (!all.some((e) => e.key === cropEntryKey(crop))) all.push(draftToEntry(crop));
+    }
+    if (all.length === 0) {
+      notifications.show({ color: 'red', message: '작목을 선택하거나 추가하세요.' });
       return;
     }
-    const region = [values.province, values.city].filter(Boolean).join(' ');
-    createMut.mutate({
-      startDate: dayjs(values.startDate).format(FMT),
-      itemCode: crop.item_code,
-      kindCode: crop.kind_code,
-      cropName: crop.item_name,
-      region,
-      province: values.province ?? undefined,
-      area: typeof values.area === 'number' ? values.area : 0,
-      areaUnit: values.areaUnit,
-      visitDays: values.visitDays.length ? [...values.visitDays].sort((a, b) => a - b) : undefined,
-    });
-  });
+    const payloads: FarmPlanCreate[] = all.map((e) => ({
+      startDate: dayjs(e.startDate).format(FMT),
+      itemCode: e.crop.item_code,
+      kindCode: e.crop.kind_code,
+      cropName: e.crop.item_name,
+      region: [e.province, e.city].filter(Boolean).join(' '),
+      province: e.province ?? undefined,
+      area: typeof e.area === 'number' ? e.area : 0,
+      areaUnit: e.areaUnit,
+      visitDays: e.visitDays.length ? [...e.visitDays].sort((a, b) => a - b) : undefined,
+    }));
+    createMut.mutate(payloads);
+  };
+
+  const totalCount = queue.length + (crop ? 1 : 0);
 
   return (
     <Box bg="gray.0" mih="100vh" py={{ base: 24, md: 48 }}>
@@ -212,6 +367,8 @@ function SetupForm() {
             </Badge>
           </Group>
 
+          {tabs}
+
           <Box>
             <Text size="xs" c="green.7" fw={800} tt="uppercase" style={{ letterSpacing: 1.2 }}>
               영농 캘린더
@@ -229,141 +386,157 @@ function SetupForm() {
           </Box>
 
           <Card radius="lg" p="lg" withBorder bg="white">
-            <form onSubmit={onSubmit}>
-              <Stack gap="md">
-                <style jsx global>{`
-                  /* 시작일 선택 팝오버 달력: 토=파랑, 일=빨강 (월화수목금토일 순서) */
-                  .mantine-DatePickerInput-weekday:nth-of-type(6) {
-                    color: var(--mantine-color-blue-6);
-                  }
-                  .mantine-DatePickerInput-weekday:last-of-type {
-                    color: var(--mantine-color-red-6);
-                  }
-                `}</style>
-                <DatePickerInput
-                  label="시작 날짜"
-                  placeholder="재배 시작일 선택"
-                  valueFormat="YYYY년 M월 D일"
+            <Stack gap="md">
+              <style jsx global>{`
+                /* 시작일 선택 팝오버 달력: 토=파랑, 일=빨강 (월화수목금토일 순서) */
+                .mantine-DatePickerInput-weekday:nth-of-type(6) {
+                  color: var(--mantine-color-blue-6);
+                }
+                .mantine-DatePickerInput-weekday:last-of-type {
+                  color: var(--mantine-color-red-6);
+                }
+              `}</style>
+
+              {queue.length > 0 && (
+                <Stack gap={8}>
+                  <Text size="sm" fw={700}>
+                    추가된 작물 {queue.length}개
+                  </Text>
+                  {queue.map((e) => (
+                    <QueuedCrop key={e.key} entry={e} onRemove={() => removeQueued(e.key)} />
+                  ))}
+                  <Divider my={4} label="다음 작물" labelPosition="center" />
+                </Stack>
+              )}
+
+              <CropPicker value={crop} onChange={setCrop} />
+
+              <DatePickerInput
+                label="시작 날짜"
+                placeholder="재배 시작일 선택"
+                valueFormat="YYYY년 M월 D일"
+                withAsterisk
+                firstDayOfWeek={1}
+                monthLabelFormat="YYYY년 M월"
+                yearLabelFormat="YYYY년"
+                monthsListFormat="M월"
+                weekdayFormat={(date) => KOR_WEEKDAYS[date.getDay()]}
+                getDayProps={(date) => {
+                  const wd = dayjs(date).day(); // 0=일 ~ 6=토
+                  if (wd === 6) return { style: { color: 'var(--mantine-color-blue-6)' } };
+                  if (wd === 0) return { style: { color: 'var(--mantine-color-red-6)' } };
+                  return {};
+                }}
+                value={draft.startDate}
+                onChange={(v) => setDf({ startDate: v })}
+              />
+
+              <Group grow align="flex-start">
+                <Select
+                  label="지역 (시·도)"
+                  placeholder="선택"
                   withAsterisk
-                  firstDayOfWeek={1}
-                  monthLabelFormat="YYYY년 M월"
-                  yearLabelFormat="YYYY년"
-                  monthsListFormat="M월"
-                  weekdayFormat={(date) => KOR_WEEKDAYS[date.getDay()]}
-                  getDayProps={(date) => {
-                    const wd = dayjs(date).day(); // 0=일 ~ 6=토
-                    if (wd === 6)
-                      return { style: { color: 'var(--mantine-color-blue-6)' } };
-                    if (wd === 0)
-                      return { style: { color: 'var(--mantine-color-red-6)' } };
-                    return {};
-                  }}
-                  {...form.getInputProps('startDate')}
+                  searchable
+                  data={PROVINCE_OPTIONS}
+                  leftSection={<IconMapPin size={16} />}
+                  value={draft.province}
+                  onChange={(v) => setDf({ province: v, city: null })}
                 />
+                <Select
+                  label="시·군·구"
+                  placeholder={draft.province ? '선택' : ''}
+                  searchable
+                  disabled={!draft.province}
+                  data={draft.province ? getCitiesByProvince(draft.province) : []}
+                  value={draft.city}
+                  onChange={(v) => setDf({ city: v })}
+                />
+              </Group>
 
-                <CropPicker value={crop} onChange={setCrop} />
-
-                <Group grow align="flex-start">
-                  <Select
-                    label="지역 (시·도)"
-                    placeholder="선택"
-                    withAsterisk
-                    searchable
-                    data={PROVINCE_OPTIONS}
-                    leftSection={<IconMapPin size={16} />}
-                    {...form.getInputProps('province')}
-                    onChange={(v) => {
-                      form.setFieldValue('province', v);
-                      form.setFieldValue('city', null);
-                    }}
+              <Box>
+                <Text size="sm" fw={500} mb={4}>
+                  농지 면적 <span style={{ color: 'var(--mantine-color-red-6)' }}>*</span>
+                </Text>
+                <Group gap="sm" align="flex-start" wrap="nowrap">
+                  <NumberInput
+                    flex={1}
+                    min={1}
+                    placeholder="면적"
+                    hideControls
+                    value={draft.area}
+                    onChange={(v) => setDf({ area: typeof v === 'number' ? v : '' })}
                   />
-                  <Select
-                    label="시·군·구"
-                    placeholder={form.values.province ? '선택' : ''}
-                    searchable
-                    disabled={!form.values.province}
-                    data={form.values.province ? getCitiesByProvince(form.values.province) : []}
-                    {...form.getInputProps('city')}
+                  <SegmentedControl
+                    data={[
+                      { value: 'pyeong', label: '평' },
+                      { value: 'sqm', label: 'm²' },
+                      { value: 'hectare', label: 'ha' },
+                    ]}
+                    value={draft.areaUnit}
+                    onChange={(v) => setDf({ areaUnit: v as AreaUnit })}
                   />
                 </Group>
+              </Box>
 
-                <Box>
-                  <Text size="sm" fw={500} mb={4}>
-                    농지 면적 <span style={{ color: 'var(--mantine-color-red-6)' }}>*</span>
-                  </Text>
-                  <Group gap="sm" align="flex-start" wrap="nowrap">
-                    <NumberInput
-                      flex={1}
-                      min={1}
-                      placeholder="면적"
-                      hideControls
-                      {...form.getInputProps('area')}
-                    />
-                    <SegmentedControl
-                      data={[
-                        { value: 'pyeong', label: '평' },
-                        { value: 'sqm', label: 'm²' },
-                        { value: 'hectare', label: 'ha' },
-                      ]}
-                      {...form.getInputProps('areaUnit')}
-                    />
-                  </Group>
-                </Box>
+              <Box>
+                <Text size="sm" fw={500} mb={4}>
+                  방문 요일
+                </Text>
+                <Text size="xs" c="dimmed" mb={8}>
+                  선택하면 단기 작업(파종·시비·방제 등)을 방문 요일에 맞춰 배치합니다. 비우면 매일 가능으로 처리.
+                </Text>
+                <Group grow gap="xs">
+                  {WEEKDAYS.map((w) => {
+                    const checked = draft.visitDays.includes(w.v);
+                    return (
+                      <Button
+                        key={w.v}
+                        size="sm"
+                        radius="xl"
+                        px={6}
+                        variant={checked ? 'filled' : 'default'}
+                        color="green"
+                        leftSection={checked ? <IconCheck size={12} /> : <IconX size={12} />}
+                        styles={{
+                          section: checked ? undefined : { color: 'var(--mantine-color-gray-5)' },
+                        }}
+                        onClick={() =>
+                          setDf({
+                            visitDays: checked
+                              ? draft.visitDays.filter((d) => d !== w.v)
+                              : [...draft.visitDays, w.v],
+                          })
+                        }
+                      >
+                        {w.l}
+                      </Button>
+                    );
+                  })}
+                </Group>
+              </Box>
 
-                <Box>
-                  <Text size="sm" fw={500} mb={4}>
-                    방문 요일
-                  </Text>
-                  <Text size="xs" c="dimmed" mb={8}>
-                    선택하면 단기 작업(파종·시비·방제 등)을 방문 요일에 맞춰 배치합니다. 비우면 매일 가능으로 처리.
-                  </Text>
-                  <Group grow gap="xs">
-                    {WEEKDAYS.map((w) => {
-                      const checked = form.values.visitDays.includes(w.v);
-                      return (
-                        <Button
-                          key={w.v}
-                          size="sm"
-                          radius="xl"
-                          px={6}
-                          variant={checked ? 'filled' : 'default'}
-                          color="green"
-                          leftSection={
-                            checked ? <IconCheck size={12} /> : <IconX size={12} />
-                          }
-                          styles={{
-                            section: checked
-                              ? undefined
-                              : { color: 'var(--mantine-color-gray-5)' },
-                          }}
-                          onClick={() =>
-                            form.setFieldValue(
-                              'visitDays',
-                              checked
-                                ? form.values.visitDays.filter((d) => d !== w.v)
-                                : [...form.values.visitDays, w.v],
-                            )
-                          }
-                        >
-                          {w.l}
-                        </Button>
-                      );
-                    })}
-                  </Group>
-                </Box>
-
+              <Stack gap="sm" mt={4}>
                 <Button
-                  type="submit"
+                  variant="default"
+                  size="md"
+                  fullWidth
+                  leftSection={<IconPlus size={16} />}
+                  onClick={addAnother}
+                >
+                  작물 추가
+                </Button>
+                <Button
                   color="green"
                   size="md"
+                  fullWidth
                   loading={createMut.isPending}
                   leftSection={<IconCalendarPlus size={18} />}
-                  mt={4}
+                  onClick={onSubmit}
                 >
-                  농사 계획 생성
+                  {totalCount > 1 ? `${totalCount}개 작물 계획 생성` : '농사 계획 생성'}
                 </Button>
               </Stack>
-            </form>
+            </Stack>
           </Card>
         </Stack>
       </Container>
@@ -371,7 +544,51 @@ function SetupForm() {
   );
 }
 
-// 작목 검색 + 선택 (기존 /crops/search 재사용)
+// 추가된(대기 중) 작물 한 줄 요약 — 작목 + 지역·면적·시작일·방문 요일.
+function QueuedCrop({ entry, onRemove }: { entry: CropEntry; onRemove: () => void }) {
+  const region = [entry.province, entry.city].filter(Boolean).join(' ') || '지역 미정';
+  const visit = entry.visitDays.length
+    ? `${[...entry.visitDays]
+        .sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7))
+        .map((d) => WEEKDAY_LABEL[d])
+        .join('·')}요일`
+    : '매일';
+  const area = typeof entry.area === 'number' ? entry.area.toLocaleString() : entry.area;
+  return (
+    <Card
+      radius="md"
+      p="xs"
+      withBorder
+      bg="green.0"
+      style={{ borderColor: 'var(--mantine-color-green-2)' }}
+    >
+      <Group justify="space-between" wrap="nowrap">
+        <Box style={{ minWidth: 0 }}>
+          <Group gap={6} wrap="nowrap">
+            <Badge color="green" variant="light" radius="sm" size="sm">
+              {entry.crop.group_name}
+            </Badge>
+            <Text fw={700} fz={14}>
+              {entry.crop.kind_name}
+            </Text>
+            <Text size="xs" c="dimmed">
+              {entry.crop.item_name}
+            </Text>
+          </Group>
+          <Text size="xs" c="dimmed" mt={2} truncate>
+            {region} · {area} {AREA_UNIT_LABEL[entry.areaUnit]} ·{' '}
+            {dayjs(entry.startDate).format('M.D')} 시작 · {visit}
+          </Text>
+        </Box>
+        <ActionIcon variant="subtle" color="gray" onClick={onRemove} aria-label="추가 취소">
+          <IconX size={16} />
+        </ActionIcon>
+      </Group>
+    </Card>
+  );
+}
+
+// 작목 검색 + 단일 선택 (기존 /crops/search 재사용). 선택하면 카드로 표시, 변경 가능.
 function CropPicker({
   value,
   onChange,
@@ -393,7 +610,13 @@ function CropPicker({
         <Text size="sm" fw={500} mb={4}>
           작목 <span style={{ color: 'var(--mantine-color-red-6)' }}>*</span>
         </Text>
-        <Card radius="md" p="sm" withBorder bg="green.0" style={{ borderColor: 'var(--mantine-color-green-3)' }}>
+        <Card
+          radius="md"
+          p="sm"
+          withBorder
+          bg="green.0"
+          style={{ borderColor: 'var(--mantine-color-green-3)' }}
+        >
           <Group justify="space-between" wrap="nowrap">
             <Group gap={8}>
               <Badge color="green" variant="light" radius="sm">
@@ -474,9 +697,565 @@ function CropPicker({
   );
 }
 
+// ─────────────────────────── 작물 탭 + 모두보기 ───────────────────────────
+
+// 달력 그리드 공통 스타일(.kw-cal). PlanCalendar·AllCalendar 가 공유.
+function CalendarGridStyles() {
+  return (
+    <style jsx global>{`
+      /* 달력을 카드 폭에 꽉 채움 */
+      .kw-cal {
+        width: 100%;
+      }
+      .kw-cal .mantine-Calendar-calendarHeader {
+        max-width: 100%;
+      }
+      /* 헤더 라벨(2026년 6월) 가운데 정렬 */
+      .kw-cal .mantine-Calendar-calendarHeaderLevel {
+        justify-content: center;
+        text-align: center;
+      }
+      /* 월/년 선택 그리드: 폭에 꽉 채워 균등 분할 + 칸 안에서 가운데 정렬 */
+      .kw-cal .mantine-Calendar-monthsList,
+      .kw-cal .mantine-Calendar-yearsList {
+        width: 100%;
+        table-layout: fixed;
+      }
+      .kw-cal .mantine-Calendar-monthsListCell,
+      .kw-cal .mantine-Calendar-yearsListCell {
+        text-align: center;
+      }
+      .kw-cal .mantine-Calendar-monthsListControl,
+      .kw-cal .mantine-Calendar-yearsListControl {
+        margin-inline: auto;
+      }
+      /* 표를 카드 폭에 꽉 채워 7칸 균등 분할, 날짜 칸은 정사각형 */
+      .kw-cal .mantine-Calendar-month,
+      .kw-cal .mantine-Calendar-weekdaysRow {
+        width: 100%;
+        table-layout: fixed;
+      }
+      .kw-cal .mantine-Calendar-day {
+        width: 100%;
+        height: auto;
+        aspect-ratio: 1 / 1;
+      }
+      .kw-cal .mantine-Calendar-weekday {
+        font-size: 0.8rem;
+        font-weight: 700;
+      }
+      /* 월화수목금토일 순서: 6번째=토(파랑), 마지막=일(빨강) */
+      .kw-cal .mantine-Calendar-weekday:nth-of-type(6) {
+        color: var(--mantine-color-blue-6);
+      }
+      .kw-cal .mantine-Calendar-weekday:last-of-type {
+        color: var(--mantine-color-red-6);
+      }
+    `}</style>
+  );
+}
+
+// 작물(계획)별 탭 + 모두보기 + 작물 추가. 클릭 시 URL 쿼리로 전환.
+function PlanTabs({
+  plans,
+  activeId,
+  showAll,
+}: {
+  plans: LoadedPlan[];
+  activeId: number | null;
+  showAll: boolean;
+}) {
+  const router = useRouter();
+  const value = showAll ? 'all' : activeId ? String(activeId) : '';
+
+  return (
+    <Tabs
+      value={value}
+      variant="pills"
+      color="green"
+      onChange={(v) => {
+        if (v === 'all') router.push('/calendar?view=all');
+        else if (v === '__add') router.push('/calendar');
+        else if (v) router.push(`/calendar?planId=${v}`);
+      }}
+    >
+      <Tabs.List style={{ flexWrap: 'wrap', rowGap: 6 }}>
+        {plans.map(({ id, plan }) => (
+          <Tabs.Tab key={id} value={String(id)}>
+            {plan.cropName}
+          </Tabs.Tab>
+        ))}
+        {plans.length > 1 && (
+          <Tabs.Tab value="all" leftSection={<IconLayoutGrid size={14} />}>
+            모두 보기
+          </Tabs.Tab>
+        )}
+        <Tabs.Tab value="__add" leftSection={<IconPlus size={14} />} c="dimmed">
+          작물 추가
+        </Tabs.Tab>
+      </Tabs.List>
+    </Tabs>
+  );
+}
+
+// 모두보기 인덱스: 날짜별로 (작물·작업) 목록을 모음. 기간형 작업은 날짜 범위로 펼침.
+interface AllEntry {
+  planId: number;
+  cropName: string;
+  task: FarmTask;
+}
+
+// 한 작물의 방문 요일(0=일~6=토)과 적용 기간(시작~마지막 작업일).
+interface VisitWindow {
+  days: Set<number>;
+  startKey: string;
+  lastKey: string;
+}
+
+function buildAllIndex(plans: LoadedPlan[]): Map<string, AllEntry[]> {
+  const byDate = new Map<string, AllEntry[]>();
+  for (const { id, plan } of plans) {
+    for (const t of plan.tasks) {
+      let d = dayjs(t.date);
+      const end = dayjs(t.endDate);
+      while (d.isBefore(end) || d.isSame(end, 'day')) {
+        const key = d.format(FMT);
+        const arr = byDate.get(key) ?? [];
+        arr.push({ planId: id, cropName: plan.cropName, task: t });
+        byDate.set(key, arr);
+        d = d.add(1, 'day');
+      }
+    }
+  }
+  return byDate;
+}
+
+function AllPlansView({
+  plans,
+  loading,
+  tabs,
+}: {
+  plans: LoadedPlan[];
+  loading: boolean;
+  tabs?: ReactNode;
+}) {
+  // 숨긴 작물 id 집합(비어 있으면 전체 표시).
+  const [hidden, setHidden] = useState<Set<number>>(() => new Set());
+  const shown = useMemo(() => plans.filter((p) => !hidden.has(p.id)), [plans, hidden]);
+  const toggle = (id: number) =>
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const index = useMemo(() => buildAllIndex(shown), [shown]);
+  // 보이는 작물별 방문 요일 + 계획 기간(시작~마지막 작업일). 달력에서 방문일 배경 표시용.
+  const visitInfo = useMemo<VisitWindow[]>(
+    () =>
+      shown
+        .map(({ plan }) => {
+          const days = new Set(plan.visitDays ?? []);
+          if (days.size === 0) return null;
+          let last = plan.startDate;
+          for (const t of plan.tasks) if (t.endDate > last) last = t.endDate;
+          return { days, startKey: plan.startDate, lastKey: last };
+        })
+        .filter((v): v is VisitWindow => v !== null),
+    [shown],
+  );
+  const earliest = useMemo(() => {
+    if (plans.length === 0) return new Date();
+    const min = plans.reduce(
+      (acc, p) => (p.plan.startDate < acc ? p.plan.startDate : acc),
+      plans[0].plan.startDate,
+    );
+    return dayjs(min).toDate();
+  }, [plans]);
+
+  const [month, setMonth] = useState<Date | null>(null);
+  const [selected, setSelected] = useState<Date | null>(null);
+  useEffect(() => {
+    if (!month) {
+      setMonth(earliest);
+      setSelected(earliest);
+    }
+  }, [earliest, month]);
+
+  return (
+    <Box bg="gray.0" mih="100vh" py={{ base: 24, md: 48 }}>
+      <Container size="xl">
+        <Stack gap="lg">
+          {tabs}
+          <Card
+            radius="lg"
+            p="lg"
+            withBorder
+            style={{
+              background:
+                'linear-gradient(135deg, var(--mantine-color-green-0), var(--mantine-color-teal-0))',
+              borderColor: 'var(--mantine-color-green-2)',
+            }}
+          >
+            <Stack gap="sm">
+              <Title order={2} fz={{ base: 22, md: 28 }} fw={800}>
+                전체 작물 캘린더
+              </Title>
+              <Group gap="sm" wrap="wrap">
+                <Button
+                  size="compact-xs"
+                  variant="subtle"
+                  color="gray"
+                  disabled={hidden.size === 0}
+                  onClick={() => setHidden(new Set())}
+                >
+                  전체 표시
+                </Button>
+                {plans.map(({ id, plan }) => {
+                  const on = !hidden.has(id);
+                  return (
+                    <Badge
+                      key={id}
+                      onClick={() => toggle(id)}
+                      variant={on ? 'filled' : 'outline'}
+                      color="gray"
+                      radius="sm"
+                      leftSection={on ? <IconCheck size={11} /> : <IconX size={11} />}
+                      style={{ cursor: 'pointer', opacity: on ? 1 : 0.6 }}
+                    >
+                      {plan.cropName}
+                    </Badge>
+                  );
+                })}
+              </Group>
+            </Stack>
+          </Card>
+
+          {loading && plans.length === 0 ? (
+            <Skeleton h={400} radius="lg" />
+          ) : plans.length === 0 ? (
+            <Alert color="gray" radius="md" icon={<IconAlertCircle size={16} />}>
+              아직 등록된 작물 계획이 없습니다. “작물 추가”로 첫 계획을 만들어 보세요.
+            </Alert>
+          ) : (
+            <Grid gutter="lg" align="stretch">
+              <Grid.Col span={{ base: 12, md: 6 }}>
+                <AllCalendar
+                  index={index}
+                  visitInfo={visitInfo}
+                  month={month}
+                  onMonthChange={setMonth}
+                  selected={selected}
+                  onSelect={setSelected}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, md: 6 }}>
+                <AllDayPanel plans={shown} index={index} selected={selected} />
+              </Grid.Col>
+            </Grid>
+          )}
+        </Stack>
+      </Container>
+    </Box>
+  );
+}
+
+function AllCalendar({
+  index,
+  visitInfo,
+  month,
+  onMonthChange,
+  selected,
+  onSelect,
+}: {
+  index: Map<string, AllEntry[]>;
+  visitInfo: VisitWindow[];
+  month: Date | null;
+  onMonthChange: (d: Date | null) => void;
+  selected: Date | null;
+  onSelect: (d: Date) => void;
+}) {
+  return (
+    <Card radius="lg" p="lg" withBorder bg="white">
+      <CalendarGridStyles />
+      <Box mih={{ base: 380, md: 610 }} w="100%">
+        <Calendar
+          className="kw-cal"
+          date={month ?? undefined}
+          onDateChange={onMonthChange}
+          minDate={new Date(MIN_YEAR, 0, 1)}
+          size="xl"
+          firstDayOfWeek={1}
+          weekdayFormat={(date) => KOR_WEEKDAYS[date.getDay()]}
+          monthLabelFormat="YYYY년 M월"
+          yearLabelFormat="YYYY년"
+          monthsListFormat="M월"
+          style={{ '--day-size': '3rem', width: '100%' } as CSSProperties}
+          getDayProps={(date) => ({ onClick: () => onSelect(date) })}
+          renderDay={(date) => {
+            const key = dayjs(date).format(FMT);
+            const entries = index.get(key) ?? [];
+            // 점 하나 = 카테고리 하나(색=카테고리). 작물 구분은 오른쪽 날짜 패널에서.
+            const cats: TaskCategory[] = [];
+            for (const e of entries) {
+              if (!cats.includes(e.task.category)) cats.push(e.task.category);
+            }
+            const shown = cats.slice(0, 5);
+            const wd = dayjs(date).day();
+            const isSelected = selected ? dayjs(date).isSame(selected, 'date') : false;
+            // 보이는 작물 중 하나라도 그 기간 안의 방문 요일이면 방문일로 표시.
+            const isVisitDay = visitInfo.some(
+              (v) => v.days.has(wd) && key >= v.startKey && key <= v.lastKey,
+            );
+            const bg = isSelected
+              ? 'var(--mantine-color-green-1)'
+              : isVisitDay
+                ? 'var(--mantine-color-green-0)'
+                : undefined;
+            const numColor =
+              wd === 0
+                ? 'var(--mantine-color-red-6)'
+                : wd === 6
+                  ? 'var(--mantine-color-blue-6)'
+                  : undefined;
+            return (
+              <Stack
+                gap={3}
+                align="stretch"
+                justify="flex-start"
+                style={{
+                  position: 'relative',
+                  width: '100%',
+                  height: '100%',
+                  boxSizing: 'border-box',
+                  paddingTop: 4,
+                  background: bg,
+                  border: isSelected ? '2px solid var(--mantine-color-green-5)' : undefined,
+                  borderRadius: isSelected || isVisitDay ? 6 : undefined,
+                }}
+              >
+                <Text
+                  ta="center"
+                  size="md"
+                  fw={isSelected ? 700 : 500}
+                  lh={1}
+                  style={{ color: numColor }}
+                >
+                  {date.getDate()}
+                </Text>
+                <Group gap={3} justify="center" wrap="wrap" style={{ minHeight: 8 }}>
+                  {shown.map((c) => (
+                    <Box
+                      key={c}
+                      w={7}
+                      h={7}
+                      style={{
+                        borderRadius: '50%',
+                        background: `var(--mantine-color-${CATEGORY_META[c].color}-6)`,
+                      }}
+                    />
+                  ))}
+                  {cats.length > 5 && (
+                    <Text size="9px" c="dimmed" lh={1}>
+                      +{cats.length - 5}
+                    </Text>
+                  )}
+                </Group>
+              </Stack>
+            );
+          }}
+        />
+      </Box>
+      <Group gap="md" mt="md" justify="center" wrap="wrap">
+        {(Object.keys(CATEGORY_META) as TaskCategory[]).map((c) => (
+          <Group key={c} gap={4}>
+            <Box
+              w={8}
+              h={8}
+              style={{
+                borderRadius: '50%',
+                background: `var(--mantine-color-${CATEGORY_META[c].color}-6)`,
+              }}
+            />
+            <Text size="xs" c="dimmed">
+              {CATEGORY_META[c].label}
+            </Text>
+          </Group>
+        ))}
+        {visitInfo.length > 0 && (
+          <Group gap={4}>
+            <Box
+              w={14}
+              h={14}
+              bg="green.0"
+              style={{ borderRadius: 4, border: '1px solid var(--mantine-color-green-3)' }}
+            />
+            <Text size="xs" c="dimmed">
+              방문 요일
+            </Text>
+          </Group>
+        )}
+      </Group>
+    </Card>
+  );
+}
+
+function AllDayPanel({
+  plans,
+  index,
+  selected,
+}: {
+  plans: LoadedPlan[];
+  index: Map<string, AllEntry[]>;
+  selected: Date | null;
+}) {
+  const key = selected ? dayjs(selected).format(FMT) : null;
+  const entries = key ? index.get(key) ?? [] : [];
+
+  // 작물(계획) 순서대로 그룹핑. 작업은 id 기준 중복 제거.
+  const groups = plans
+    .map(({ id, plan }) => {
+      const seen = new Set<number>();
+      const tasks: FarmTask[] = [];
+      for (const e of entries) {
+        if (e.planId === id && !seen.has(e.task.id)) {
+          seen.add(e.task.id);
+          tasks.push(e.task);
+        }
+      }
+      const memoObj = key ? plan.memos.find((m) => m.memoDate === key) : undefined;
+      const memo = memoObj?.content ?? '';
+      const images = memoObj?.images ?? [];
+      return { id, plan, tasks, memo, images };
+    })
+    .filter((g) => g.tasks.length > 0 || g.memo || g.images.length > 0);
+
+  if (!key) {
+    return (
+      <Card radius="lg" p="lg" withBorder bg="white">
+        <Text c="dimmed" size="sm">
+          날짜를 선택하면 그 날 모든 작물의 작업을 모아 봅니다.
+        </Text>
+      </Card>
+    );
+  }
+
+  return (
+    <Card radius="lg" p="lg" withBorder bg="white">
+      <Stack gap="md">
+        <Group gap={6}>
+          <ThemeIcon size={26} radius="md" color="green" variant="light">
+            <IconLayoutGrid size={14} />
+          </ThemeIcon>
+          <Title order={4}>{dayjs(selected).format('M월 D일 (ddd)')}</Title>
+        </Group>
+
+        {groups.length === 0 ? (
+          <Text size="sm" c="dimmed">
+            이 날짜에 예정된 작업이 없습니다.
+          </Text>
+        ) : (
+          <Stack gap="lg">
+            {groups.map(({ id, plan, tasks, memo, images }) => (
+              <Box key={id}>
+                <Group justify="space-between" wrap="nowrap" mb={6}>
+                  <Badge
+                    variant="outline"
+                    color="gray"
+                    radius="sm"
+                    size="lg"
+                    styles={{ root: { borderColor: 'var(--mantine-color-gray-4)' } }}
+                  >
+                    {plan.cropName}
+                  </Badge>
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    color="gray"
+                    component={Link}
+                    href={`/calendar?planId=${id}`}
+                    rightSection={<IconExternalLink size={12} />}
+                  >
+                    캘린더 열기
+                  </Button>
+                </Group>
+                <Stack gap={6}>
+                  {tasks.map((t) => {
+                    const meta = CATEGORY_META[t.category];
+                    return (
+                      <Card key={t.id} radius="md" p="xs" withBorder bg="gray.0">
+                        <Group gap={6} wrap="wrap" align="baseline">
+                          <Text fw={600} fz={13}>
+                            {t.title}
+                          </Text>
+                          <Text size="xs" c={`${meta.color}.7`} fw={600}>
+                            {meta.label}
+                          </Text>
+                          {t.status === 'done' && (
+                            <Badge size="xs" color="green" radius="sm">
+                              완료
+                            </Badge>
+                          )}
+                          {t.status === 'delayed' && (
+                            <Badge size="xs" color="orange" variant="light" radius="sm">
+                              지연
+                            </Badge>
+                          )}
+                        </Group>
+                      </Card>
+                    );
+                  })}
+                  {memo && (
+                    <Group gap={6} wrap="nowrap" align="flex-start" px={4}>
+                      <IconPencil
+                        size={14}
+                        stroke={2.2}
+                        color="var(--mantine-color-grape-6)"
+                        style={{ flexShrink: 0, marginTop: 2 }}
+                      />
+                      <Text size="xs" c="gray.7" style={{ whiteSpace: 'pre-wrap' }}>
+                        {memo}
+                      </Text>
+                    </Group>
+                  )}
+                  {images.length > 0 && (
+                    <SimpleGrid cols={4} spacing={6} px={4}>
+                      {images.map((img) => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <a key={img.id} href={mediaUrl(img.url)} target="_blank" rel="noreferrer">
+                          <img
+                            src={mediaUrl(img.url)}
+                            alt={img.originalName ?? '메모 사진'}
+                            style={{
+                              width: '100%',
+                              aspectRatio: '1 / 1',
+                              objectFit: 'cover',
+                              borderRadius: 6,
+                              border: '1px solid var(--mantine-color-gray-3)',
+                            }}
+                          />
+                        </a>
+                      ))}
+                    </SimpleGrid>
+                  )}
+                </Stack>
+              </Box>
+            ))}
+          </Stack>
+        )}
+
+        <Text size="xs" c="dimmed">
+          작업 완료·지연·메모 편집은 작물별 캘린더(“캘린더 열기”)에서 할 수 있어요.
+        </Text>
+      </Stack>
+    </Card>
+  );
+}
+
 // ─────────────────────────── 계획 캘린더 뷰 ───────────────────────────
 
-function PlanView({ planId }: { planId: number }) {
+function PlanView({ planId, tabs }: { planId: number; tabs?: ReactNode }) {
   const qc = useQueryClient();
   const planQ = useQuery({
     queryKey: ['farmplan', planId],
@@ -524,6 +1303,7 @@ function PlanView({ planId }: { planId: number }) {
     <Box bg="gray.0" mih="100vh" py={{ base: 24, md: 48 }}>
       <Container size="xl">
         <Stack gap="lg">
+          {tabs}
           <PlanHeader plan={plan} planId={planId} onChange={setPlan} />
           <Grid gutter="lg" align="stretch">
             <Grid.Col span={{ base: 12, md: 6 }}>
@@ -854,7 +1634,11 @@ function PlanCalendar({
   const { barsByDate, laneCount } = useMemo(() => computeBars(plan), [plan]);
   const dotsByDate = useMemo(() => singleDayDots(plan), [plan]);
   const memoDates = useMemo(
-    () => new Set(plan.memos.map((m) => m.memoDate)),
+    () => new Set(plan.memos.filter((m) => m.content.trim()).map((m) => m.memoDate)),
+    [plan.memos],
+  );
+  const photoDates = useMemo(
+    () => new Set(plan.memos.filter((m) => m.images.length > 0).map((m) => m.memoDate)),
     [plan.memos],
   );
   // 시작일 = plan.startDate, 마지막일 = 가장 늦은 작업 종료일 (YYYY-MM-DD 문자열 비교로 충분)
@@ -869,56 +1653,7 @@ function PlanCalendar({
 
   return (
     <Card radius="lg" p="lg" withBorder bg="white">
-      <style jsx global>{`
-        /* 달력을 카드 폭에 꽉 채움 */
-        .kw-cal {
-          width: 100%;
-        }
-        .kw-cal .mantine-Calendar-calendarHeader {
-          max-width: 100%;
-        }
-        /* 헤더 라벨(2026년 6월) 가운데 정렬 */
-        .kw-cal .mantine-Calendar-calendarHeaderLevel {
-          justify-content: center;
-          text-align: center;
-        }
-        /* 월/년 선택 그리드: 폭에 꽉 채워 균등 분할 + 칸 안에서 가운데 정렬 */
-        .kw-cal .mantine-Calendar-monthsList,
-        .kw-cal .mantine-Calendar-yearsList {
-          width: 100%;
-          table-layout: fixed;
-        }
-        .kw-cal .mantine-Calendar-monthsListCell,
-        .kw-cal .mantine-Calendar-yearsListCell {
-          text-align: center;
-        }
-        .kw-cal .mantine-Calendar-monthsListControl,
-        .kw-cal .mantine-Calendar-yearsListControl {
-          margin-inline: auto;
-        }
-        /* 표를 카드 폭에 꽉 채워 7칸 균등 분할, 날짜 칸은 정사각형 */
-        .kw-cal .mantine-Calendar-month,
-        .kw-cal .mantine-Calendar-weekdaysRow {
-          width: 100%;
-          table-layout: fixed;
-        }
-        .kw-cal .mantine-Calendar-day {
-          width: 100%;
-          height: auto;
-          aspect-ratio: 1 / 1;
-        }
-        .kw-cal .mantine-Calendar-weekday {
-          font-size: 0.8rem;
-          font-weight: 700;
-        }
-        /* 월화수목금토일 순서: 6번째=토(파랑), 마지막=일(빨강) */
-        .kw-cal .mantine-Calendar-weekday:nth-of-type(6) {
-          color: var(--mantine-color-blue-6);
-        }
-        .kw-cal .mantine-Calendar-weekday:last-of-type {
-          color: var(--mantine-color-red-6);
-        }
-      `}</style>
+      <CalendarGridStyles />
       {/* 6주 기준 높이 예약(+여백) — 5주인 달은 아래가 여백, 달이 바뀌어도 카드 높이 일정 */}
       <Box mih={{ base: 380, md: 610 }} w="100%" pos="relative">
       <Calendar
@@ -946,6 +1681,7 @@ function PlanCalendar({
           const bars = barsByDate.get(key) ?? [];
           const dots = (dotsByDate.get(key) ?? []).slice(0, 4);
           const hasMemo = memoDates.has(key);
+          const hasPhoto = photoDates.has(key);
           const isStart = key === startKey;
           const isLast = key === lastKey;
           const wd = dayjs(date).day(); // 0=일 ~ 6=토
@@ -1030,13 +1766,14 @@ function PlanCalendar({
                 ))}
               </Group>
 
-              {hasMemo && (
-                <Group gap={2} justify="center" style={{ minHeight: 15 }}>
-                  <IconPencil
-                    size={15}
-                    stroke={2.4}
-                    color="var(--mantine-color-grape-6)"
-                  />
+              {(hasMemo || hasPhoto) && (
+                <Group gap={3} justify="center" style={{ minHeight: 15 }}>
+                  {hasMemo && (
+                    <IconPencil size={15} stroke={2.4} color="var(--mantine-color-grape-6)" />
+                  )}
+                  {hasPhoto && (
+                    <IconPhoto size={14} stroke={2.2} color="var(--mantine-color-grape-6)" />
+                  )}
                 </Group>
               )}
             </Stack>
@@ -1155,10 +1892,13 @@ function DayPanel({
   const key = selected ? dayjs(selected).format(FMT) : null;
   const byDate = useMemo(() => tasksByDate(plan), [plan]);
   const dayTasks = key ? byDate.get(key) ?? [] : [];
-  const existingMemo = key ? plan.memos.find((m) => m.memoDate === key)?.content ?? '' : '';
+  const memo = key ? plan.memos.find((m) => m.memoDate === key) : undefined;
+  const existingMemo = memo?.content ?? '';
+  const existingImages = memo?.images ?? [];
 
   const [memoDraft, setMemoDraft] = useState(existingMemo);
   useEffect(() => setMemoDraft(existingMemo), [existingMemo, key]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const taskMut = useMutation({
     mutationFn: ({ taskId, status, delayDays }: { taskId: number; status: FarmTask['status']; delayDays?: number }) =>
@@ -1206,6 +1946,26 @@ function DayPanel({
       onChange(p);
       notifications.show({ color: 'grape', message: '메모를 저장했습니다.' });
     },
+  });
+
+  const uploadMut = useMutation({
+    mutationFn: (files: File[]) => uploadMemoImages(planId, key!, files),
+    onSuccess: (p) => {
+      onChange(p);
+      notifications.show({ color: 'grape', message: '사진을 첨부했습니다.' });
+    },
+    onError: () =>
+      notifications.show({
+        color: 'red',
+        message: '사진 업로드 실패 — 이미지 형식(jpg·png·webp 등)과 용량(최대 10MB)을 확인하세요.',
+      }),
+  });
+
+  const deleteImageMut = useMutation({
+    mutationFn: (imageId: number) => deleteMemoImage(planId, imageId),
+    onSuccess: onChange,
+    onError: () =>
+      notifications.show({ color: 'red', message: '사진 삭제에 실패했습니다.' }),
   });
 
   if (!key) {
@@ -1333,7 +2093,67 @@ function DayPanel({
             value={memoDraft}
             onChange={(e) => setMemoDraft(e.currentTarget.value)}
           />
-          <Group justify="flex-end" mt="xs">
+
+          {existingImages.length > 0 && (
+            <SimpleGrid cols={{ base: 3, sm: 4 }} spacing="xs" mt="xs">
+              {existingImages.map((img) => (
+                <Box key={img.id} pos="relative" style={{ aspectRatio: '1 / 1' }}>
+                  <a href={mediaUrl(img.url)} target="_blank" rel="noreferrer">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={mediaUrl(img.url)}
+                      alt={img.originalName ?? '메모 사진'}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                        borderRadius: 8,
+                        border: '1px solid var(--mantine-color-gray-3)',
+                      }}
+                    />
+                  </a>
+                  <ActionIcon
+                    size="sm"
+                    radius="xl"
+                    color="red"
+                    variant="filled"
+                    pos="absolute"
+                    top={4}
+                    right={4}
+                    loading={deleteImageMut.isPending}
+                    onClick={() => deleteImageMut.mutate(img.id)}
+                    aria-label="사진 삭제"
+                  >
+                    <IconTrash size={12} />
+                  </ActionIcon>
+                </Box>
+              ))}
+            </SimpleGrid>
+          )}
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              const files = Array.from(e.currentTarget.files ?? []);
+              if (files.length) uploadMut.mutate(files);
+              e.currentTarget.value = '';
+            }}
+          />
+          <Group justify="space-between" mt="xs">
+            <Button
+              size="xs"
+              variant="light"
+              color="grape"
+              leftSection={<IconPhoto size={14} />}
+              loading={uploadMut.isPending}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              사진 추가
+            </Button>
             <Button
               size="xs"
               color="grape"
