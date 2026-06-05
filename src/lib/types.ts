@@ -105,6 +105,14 @@ export interface CropOption {
   label: string;
 }
 
+// ───────────── 작목 카탈로그 (농사로 (신)작목별농업기술정보 / cropEbook) ─────────────
+// 캘린더 작물 검색 소스. cropEbook 카테고리 트리의 소분류(=작목).
+export interface CropCatalogItem {
+  code: string; // subCategoryCode (작목 코드)
+  name: string; // subCategoryNm (작목명)
+  category: string; // mainCategoryNm (대분류명)
+}
+
 // ───────────── Cultivation guide (농사로 (신)작목별농업기술정보 / cropEbook) ─────────────
 
 export interface EbookIndex {
@@ -366,6 +374,22 @@ export interface WeeklyDigest {
   weekStart: string; // 월요일
   weekEnd: string; // 일요일
   tasks: WeeklyTask[];
+}
+
+// 텃밭가꾸기 (재배 정보) — 농사로 fildMnfct
+export interface GardenItem {
+  cntntsNo: string;
+  title: string;
+  seCode: string;
+  seName: string;
+}
+
+export interface GardenDetail {
+  cntntsNo: string;
+  title: string;
+  body: string;
+  downUrl?: string | null;
+  fileName?: string | null;
 }
 
 // 위기 알림 (병해충 발생정보 + 기상 특보) — 트윈의 CrisisAlert 와 구분해 PlanAlert.
