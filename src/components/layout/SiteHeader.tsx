@@ -3,17 +3,15 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
-  Anchor,
+  Alert,
   Box,
   Button,
   Container,
   Group,
   Menu,
   Modal,
-  PasswordInput,
   Stack,
   Text,
-  TextInput,
   ThemeIcon,
   UnstyledButton,
 } from '@mantine/core';
@@ -248,6 +246,7 @@ export function SiteHeader() {
   );
 }
 
+// 베타 기간 안내 — 계정 체계 도입 전까지 기록은 브라우저(디바이스 ID)에 자동 연결된다.
 function LoginModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   return (
     <Modal
@@ -266,33 +265,22 @@ function LoginModal({ opened, onClose }: { opened: boolean; onClose: () => void 
             <IconUserCircle size={26} />
           </ThemeIcon>
           <Text fw={800} fz={22}>
-            로그인
+            베타 기간엔 로그인 없이 써요
           </Text>
           <Text size="sm" c="dimmed" ta="center">
-            추천 결과·시뮬레이션을 다음에도 이어볼 수 있어요.
+            농사 계획·일지·도감·점수는 지금 쓰는 브라우저에 자동으로 연결되어
+            저장됩니다. 같은 브라우저로 접속하면 기록이 그대로 이어집니다.
           </Text>
         </Stack>
 
-        <Stack gap="sm">
-          <TextInput label="이메일" placeholder="you@kiwofarm.com" autoFocus />
-          <PasswordInput label="비밀번호" placeholder="••••••••" />
-        </Stack>
+        <Alert color="green" radius="md" variant="light">
+          정식 출시 때 이메일·카카오 계정 연동이 제공될 예정입니다. 그때 지금
+          기록을 계정으로 옮겨드릴게요.
+        </Alert>
 
-        <Stack gap="xs">
-          <Button color="green" size="md" onClick={onClose}>
-            로그인
-          </Button>
-          <Button variant="default" size="md" onClick={onClose}>
-            카카오로 시작하기
-          </Button>
-        </Stack>
-
-        <Text size="xs" c="dimmed" ta="center">
-          아직 계정이 없으신가요?{' '}
-          <Anchor size="xs" component="button" type="button" onClick={onClose}>
-            가입하기
-          </Anchor>
-        </Text>
+        <Button color="green" size="md" onClick={onClose}>
+          확인
+        </Button>
       </Stack>
     </Modal>
   );
