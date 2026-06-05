@@ -35,6 +35,7 @@ const MENU_LINKS: MenuLink[] = [
   { label: '챗봇 상담', href: '/planting/chat', icon: <IconMessageCircle size={16} /> },
   { label: '재배 정보', href: '/cultivation', icon: <IconBook2 size={16} /> },
   { label: '영농 캘린더', href: '/calendar', icon: <IconCalendarEvent size={16} /> },
+  { label: '작물 도감', href: '/collection', icon: <IconBook2 size={16} /> },
 ];
 
 export function SiteHeader() {

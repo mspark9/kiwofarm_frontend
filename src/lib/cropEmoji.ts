@@ -1,0 +1,48 @@
+// 작물 슬러그(crops_master 40종) → 도감 표시용 이모지.
+// 정확히 대응하는 이모지가 없는 작물은 가장 가까운 채소·잎 이모지로 대체.
+export const CROP_EMOJI: Record<string, string> = {
+  lettuce: '🥬',
+  spinach: '🍃',
+  bokchoy: '🥬',
+  crown_daisy: '🌼',
+  garlic_chives: '🌿',
+  kale: '🥬',
+  mustard_greens: '🌿',
+  chard: '🥬',
+  curled_mallow: '🌿',
+  chicory: '🥗',
+  arugula: '🌿',
+  baby_napa: '🥬',
+  perilla: '🍃',
+  cherry_tomato: '🍅',
+  tomato: '🍅',
+  chili_pepper: '🌶️',
+  paprika: '🫑',
+  eggplant: '🍆',
+  cucumber: '🥒',
+  korean_zucchini: '🥒',
+  pumpkin: '🎃',
+  bitter_melon: '🥒',
+  strawberry: '🍓',
+  corn: '🌽',
+  pea: '🫛',
+  kidney_bean: '🫘',
+  radish: '🥗',
+  altari_radish: '🥗',
+  carrot: '🥕',
+  potato: '🥔',
+  sweet_potato: '🍠',
+  onion: '🧅',
+  garlic: '🧄',
+  spring_onion: '🌱',
+  green_onion: '🌱',
+  kohlrabi: '🥦',
+  beet: '🍠',
+  basil: '🌿',
+  peppermint: '🍃',
+  rosemary: '🌿',
+};
+
+export function cropEmoji(slug: string): string {
+  return CROP_EMOJI[slug] ?? '🌱';
+}
