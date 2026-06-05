@@ -18,8 +18,8 @@ import {
   ThemeIcon,
   UnstyledButton,
 } from '@mantine/core';
-import type { Session } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { isAxiosError } from 'axios';
+import { clearAuth, getUsername, login, signup } from '@/lib/auth';
 import {
   IconBook2,
   IconCalendarEvent,
@@ -45,7 +45,7 @@ export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [session, setSession] = useState<Session | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -54,16 +54,10 @@ export function SiteHeader() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  useEffect(() => {
-    if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
-    return () => sub.subscription.unsubscribe();
-  }, []);
+  useEffect(() => setUsername(getUsername()), []);
 
-  const logout = async () => {
-    if (!supabase) return;
-    await supabase.auth.signOut();
+  const logout = () => {
+    clearAuth();
     // 게스트(공용 데모) 데이터로 전환 — 캐시·화면 상태 초기화를 위해 새로고침
     window.location.href = '/';
   };
@@ -148,9 +142,9 @@ export function SiteHeader() {
                   </Menu.Item>
                 ))}
                 <Menu.Divider />
-                {session ? (
+                {username ? (
                   <>
-                    <Menu.Label>{session.user.email}</Menu.Label>
+                    <Menu.Label>{username} 님</Menu.Label>
                     <Menu.Item
                       onClick={logout}
                       leftSection={
@@ -282,46 +276,28 @@ export function SiteHeader() {
   );
 }
 
-// Supabase Auth 이메일 로그인/회원가입. 비로그인은 게스트(공용 체험 데이터)로 동작.
+// 아이디+비밀번호 로그인/회원가입 (베타: 제약 최소화). 비로그인은 게스트(공용 체험 데이터).
 function LoginModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [email, setEmail] = useState('');
+  const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const submit = async () => {
-    if (!supabase) return;
     setError(null);
-    setNotice(null);
     setLoading(true);
     try {
-      if (mode === 'signup') {
-        const { data, error: e } = await supabase.auth.signUp({ email, password });
-        if (e) throw e;
-        if (!data.session) {
-          // 이메일 확인이 켜진 프로젝트 — 세션 없이 가입만 완료된 경우
-          setNotice('가입 확인 메일을 보냈습니다. 메일의 링크를 누른 뒤 로그인해 주세요.');
-          return;
-        }
-      } else {
-        const { error: e } = await supabase.auth.signInWithPassword({ email, password });
-        if (e) throw e;
-      }
+      if (mode === 'signup') await signup(userId.trim(), password);
+      else await login(userId.trim(), password);
       // 계정 데이터로 전환 — 게스트(공용 데모) 화면 상태를 비우기 위해 새로고침
       window.location.href = '/calendar';
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setError(
-        /invalid login credentials/i.test(msg)
-          ? '이메일 또는 비밀번호가 올바르지 않습니다.'
-          : /already registered/i.test(msg)
-            ? '이미 가입된 이메일입니다. 로그인해 주세요.'
-            : /at least 6/i.test(msg)
-              ? '비밀번호는 6자 이상이어야 합니다.'
-              : msg,
-      );
+      const detail =
+        isAxiosError(e) && typeof e.response?.data?.detail === 'string'
+          ? e.response.data.detail
+          : '요청에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+      setError(detail);
     } finally {
       setLoading(false);
     }
@@ -351,65 +327,50 @@ function LoginModal({ opened, onClose }: { opened: boolean; onClose: () => void 
           </Text>
         </Stack>
 
-        {supabase ? (
-          <>
-            <SegmentedControl
-              fullWidth
-              value={mode}
-              onChange={(v) => {
-                setMode(v as 'login' | 'signup');
-                setError(null);
-                setNotice(null);
-              }}
-              data={[
-                { value: 'login', label: '로그인' },
-                { value: 'signup', label: '회원가입' },
-              ]}
-            />
-            <Stack gap="sm">
-              <TextInput
-                label="이메일"
-                placeholder="you@kiwofarm.com"
-                autoFocus
-                value={email}
-                onChange={(e) => setEmail(e.currentTarget.value)}
-              />
-              <PasswordInput
-                label="비밀번호"
-                placeholder="6자 이상"
-                value={password}
-                onChange={(e) => setPassword(e.currentTarget.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void submit();
-                }}
-              />
-            </Stack>
-            {error && (
-              <Alert color="red" radius="md" variant="light">
-                {error}
-              </Alert>
-            )}
-            {notice && (
-              <Alert color="green" radius="md" variant="light">
-                {notice}
-              </Alert>
-            )}
-            <Button
-              color="green"
-              size="md"
-              loading={loading}
-              disabled={!email || password.length < 6}
-              onClick={() => void submit()}
-            >
-              {mode === 'login' ? '로그인' : '가입하기'}
-            </Button>
-          </>
-        ) : (
-          <Alert color="yellow" radius="md" variant="light">
-            로그인 설정이 아직 연결되지 않았습니다. 지금은 게스트 모드(공용 체험
-            데이터)로 이용할 수 있어요.
+        <SegmentedControl
+          fullWidth
+          value={mode}
+          onChange={(v) => {
+            setMode(v as 'login' | 'signup');
+            setError(null);
+          }}
+          data={[
+            { value: 'login', label: '로그인' },
+            { value: 'signup', label: '회원가입' },
+          ]}
+        />
+        <Stack gap="sm">
+          <TextInput
+            label="아이디"
+            placeholder="아이디"
+            autoFocus
+            value={userId}
+            onChange={(e) => setUserId(e.currentTarget.value)}
+          />
+          <PasswordInput
+            label="비밀번호"
+            placeholder="비밀번호"
+            value={password}
+            onChange={(e) => setPassword(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void submit();
+            }}
+          />
+        </Stack>
+        {error && (
+          <Alert color="red" radius="md" variant="light">
+            {error}
           </Alert>
         )}
+        <Button
+          color="green"
+          size="md"
+          loading={loading}
+          disabled={!userId.trim() || !password}
+          onClick={() => void submit()}
+        >
+          {mode === 'login' ? '로그인' : '가입하기'}
+        </Button>
 
         <Text size="xs" c="dimmed" ta="center">
           로그인하지 않아도 게스트 모드로 모든 기능을 체험할 수 있습니다.
