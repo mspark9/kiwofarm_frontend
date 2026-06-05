@@ -10,7 +10,7 @@ import {
   Grid,
   GridCol,
   Group,
-  Progress,
+  SimpleGrid,
   Stack,
   Text,
   ThemeIcon,
@@ -18,14 +18,15 @@ import {
 } from '@mantine/core';
 import {
   IconArrowRight,
+  IconArrowUpRight,
+  IconBook2,
   IconCalendarEvent,
-  IconChartLine,
-  IconLeaf,
-  IconRobot,
-  IconSparkles,
-  IconShieldCheck,
-  IconDatabase,
   IconClock,
+  IconDatabase,
+  IconLeaf,
+  IconMessageCircle,
+  IconShieldCheck,
+  IconSparkles,
 } from '@tabler/icons-react';
 
 export default function HomePage() {
@@ -42,62 +43,11 @@ export default function HomePage() {
 
 function Hero() {
   return (
-    <Box
-      pos="relative"
-      style={{
-        overflow: 'hidden',
-        background:
-          'linear-gradient(180deg, #f6fbf6 0%, #ffffff 70%)',
-      }}
-    >
-      {/* mesh blobs */}
-      <Box
-        pos="absolute"
-        style={{
-          top: -120,
-          right: -160,
-          width: 520,
-          height: 520,
-          borderRadius: '50%',
-          background:
-            'radial-gradient(circle, rgba(64,180,120,0.28), transparent 60%)',
-          filter: 'blur(20px)',
-          zIndex: 0,
-        }}
-      />
-      <Box
-        pos="absolute"
-        style={{
-          bottom: -140,
-          left: -120,
-          width: 460,
-          height: 460,
-          borderRadius: '50%',
-          background:
-            'radial-gradient(circle, rgba(80,190,200,0.22), transparent 60%)',
-          filter: 'blur(20px)',
-          zIndex: 0,
-        }}
-      />
-      {/* faint grid */}
-      <Box
-        pos="absolute"
-        style={{
-          inset: 0,
-          backgroundImage:
-            'linear-gradient(to right, rgba(34,139,84,0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(34,139,84,0.05) 1px, transparent 1px)',
-          backgroundSize: '46px 46px',
-          maskImage: 'radial-gradient(ellipse at center, black 40%, transparent 80%)',
-          WebkitMaskImage:
-            'radial-gradient(ellipse at center, black 40%, transparent 80%)',
-          zIndex: 0,
-        }}
-      />
-
-      <Container size="xl" py={{ base: 60, md: 110 }} pos="relative" style={{ zIndex: 1 }}>
-        <Grid gutter={{ base: 'xl', md: 60 }} align="center">
+    <Box style={{ background: 'linear-gradient(180deg, #f6fbf6 0%, #ffffff 72%)' }}>
+      <Container size="xl" py={{ base: 56, md: 104 }}>
+        <Grid gutter={{ base: 48, md: 56 }} align="center">
           <GridCol span={{ base: 12, md: 7 }}>
-            <Stack gap="lg">
+            <Stack gap="lg" align="flex-start">
               <Badge
                 variant="light"
                 color="green"
@@ -111,10 +61,10 @@ function Hero() {
 
               <Title
                 order={1}
-                fz={{ base: 40, md: 64 }}
+                fz={{ base: 38, md: 58 }}
                 fw={800}
-                lh={1.08}
-                style={{ letterSpacing: -1.8 }}
+                lh={1.12}
+                style={{ letterSpacing: -1.6 }}
               >
                 처음 농사도,
                 <br />
@@ -147,26 +97,16 @@ function Hero() {
                   color="green"
                   radius="md"
                   rightSection={<IconArrowRight size={18} />}
-                  styles={{
-                    root: {
-                      boxShadow: '0 10px 24px -10px rgba(34,139,84,0.55)',
-                    },
-                  }}
+                  styles={{ root: { boxShadow: '0 10px 24px -10px rgba(34,139,84,0.55)' } }}
                 >
                   지금 추천받기
                 </Button>
-                <Button
-                  component={Link}
-                  href="/dashboard"
-                  variant="default"
-                  size="lg"
-                  radius="md"
-                >
-                  대시보드 데모 보기
+                <Button component={Link} href="/#features" variant="default" size="lg" radius="md">
+                  기능 둘러보기
                 </Button>
               </Group>
 
-              <Group gap="xl" mt="md">
+              <Group gap="xl" mt="md" wrap="wrap">
                 <TrustItem icon={<IconShieldCheck size={14} />} text="공공데이터 4종 연동" />
                 <TrustItem icon={<IconDatabase size={14} />} text="우수농가 112호 학습" />
                 <TrustItem icon={<IconSparkles size={14} />} text="GPT-4o 자연어 코치" />
@@ -196,13 +136,13 @@ function TrustItem({ icon, text }: { icon: ReactNode; text: string }) {
   );
 }
 
+// 미리보기 카드
 function HeroPreview() {
   return (
-    <Box pos="relative" mih={420}>
-      {/* main card */}
+    <Box pos="relative" mih={360}>
       <Card
         radius="xl"
-        p="xl"
+        p="lg"
         withBorder
         shadow="xl"
         pos="relative"
@@ -210,168 +150,368 @@ function HeroPreview() {
           zIndex: 2,
           transform: 'rotate(-1.5deg)',
           borderColor: 'rgba(34,139,84,0.15)',
-          background:
-            'linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.88))',
+          background: 'linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.9))',
           backdropFilter: 'blur(8px)',
         }}
       >
-        <Stack gap="md">
-          <Group justify="space-between" align="flex-start">
-            <Box>
-              <Text
-                size="xs"
-                c="green.7"
-                tt="uppercase"
-                fw={800}
-                style={{ letterSpacing: 0.8 }}
-              >
-                토마토 · 옥천
-              </Text>
-              <Title order={4} mt={4} fz={20}>
-                3일 후 출하 권장
-              </Title>
-            </Box>
-            <Badge
-              color="teal"
-              variant="filled"
-              radius="sm"
-              size="md"
-              styles={{ root: { boxShadow: '0 6px 14px -6px rgba(20,160,150,0.6)' } }}
-            >
-              +6.4%
-            </Badge>
-          </Group>
-
-          <Group gap="md" wrap="nowrap" mt={4}>
+        <Group justify="space-between" align="center" mb="md">
+          <Group gap={8}>
             <Box
-              flex={1}
-              p="sm"
+              w={26}
+              h={26}
               style={{
-                borderRadius: 12,
+                borderRadius: 7,
+                background:
+                  'linear-gradient(135deg, var(--mantine-color-green-5), var(--mantine-color-teal-6))',
+                display: 'grid',
+                placeItems: 'center',
+                color: 'white',
+              }}
+            >
+              <IconLeaf size={15} stroke={2.4} />
+            </Box>
+            <Text fw={800} fz={15}>
+              키워팜
+            </Text>
+          </Group>
+          <Badge color="green" variant="light" radius="sm" size="sm">
+            AI 영농 메뉴
+          </Badge>
+        </Group>
+
+        <Stack gap={8}>
+          {FEATURES.map((f) => (
+            <Group
+              key={f.title}
+              gap={10}
+              wrap="nowrap"
+              p="9px 11px"
+              style={{
+                borderRadius: 11,
                 border: '1px solid var(--mantine-color-gray-2)',
                 background: 'white',
               }}
             >
-              <Text size="xs" c="dimmed" mb={4}>
-                오늘
-              </Text>
-              <MiniStars value={3} />
-              <Text fw={800} mt={6} fz={18}>
-                ₩4,200
-              </Text>
-            </Box>
-            <Box
-              flex={1}
-              p="sm"
-              style={{
-                borderRadius: 12,
-                border: '1px solid var(--mantine-color-teal-3)',
-                background:
-                  'linear-gradient(180deg, var(--mantine-color-teal-0), white)',
-              }}
-            >
-              <Text size="xs" c="teal.7" fw={700} mb={4}>
-                3일 후 예측
-              </Text>
-              <MiniStars value={5} />
-              <Text fw={800} c="teal.7" mt={6} fz={18}>
-                ₩4,470
-              </Text>
-            </Box>
-          </Group>
-
-          <Box mt={4}>
-            <Group justify="space-between" mb={6}>
-              <Text size="xs" c="dimmed">
-                옥천 우수농가 12곳 중 9곳 동일 선택
-              </Text>
-              <Text size="xs" fw={700} c="green.7">
-                75%
-              </Text>
+              <ThemeIcon size={34} radius="md" variant="light" color={f.color}>
+                {f.icon}
+              </ThemeIcon>
+              <Box style={{ minWidth: 0, flex: 1 }}>
+                <Text fw={700} fz={13} lh={1.25}>
+                  {f.title}
+                </Text>
+                <Text size="xs" c="dimmed" truncate>
+                  {f.tag}
+                </Text>
+              </Box>
+              <IconArrowUpRight size={15} color="var(--mantine-color-gray-4)" />
             </Group>
-            <Progress value={75} color="green" size="sm" radius="xl" />
-          </Box>
+          ))}
         </Stack>
       </Card>
 
-      {/* floating sub-card 1 */}
+      {/* 왼쪽 - AI 작목 추천 예시 */}
       <Card
         radius="lg"
-        p="md"
+        p="sm"
         withBorder
         shadow="md"
         pos="absolute"
         style={{
-          top: -22,
-          left: -28,
+          top: 90,
+          left: -210,
           zIndex: 3,
-          transform: 'rotate(-6deg)',
+          width: 290,
+          transform: 'rotate(-3.5deg)',
           background: 'white',
-          minWidth: 160,
         }}
         visibleFrom="sm"
       >
-        <Group gap={10} wrap="nowrap">
-          <ThemeIcon size={36} radius="md" color="green" variant="light">
-            <IconLeaf size={18} />
-          </ThemeIcon>
-          <Box>
-            <Text size="xs" c="dimmed">
-              추천 작목 TOP 1
-            </Text>
-            <Text fw={800} fz={14}>
-              완숙토마토
-            </Text>
+        <Text fz={10} c="green.7" fw={800} tt="uppercase" mb={7} style={{ letterSpacing: 0.6 }}>
+          AI 작목 추천
+        </Text>
+        {CROP_RECS.map((r) => (
+          <Box
+            key={r.rank}
+            mt={r.rank === 1 ? 0 : 6}
+            p="7px 8px"
+            style={{
+              borderRadius: 10,
+              border: '1px solid var(--mantine-color-gray-2)',
+              background: 'white',
+            }}
+          >
+            <Group justify="space-between" align="center" wrap="nowrap" mb={3}>
+              <Group gap={5} wrap="nowrap" style={{ minWidth: 0 }}>
+                <Box
+                  w={19}
+                  h={19}
+                  style={{
+                    borderRadius: '50%',
+                    background: 'var(--mantine-color-green-1)',
+                    color: 'var(--mantine-color-green-8)',
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontWeight: 800,
+                    fontSize: 11,
+                  }}
+                >
+                  {r.rank}
+                </Box>
+                <Text fw={800} fz={13}>
+                  {r.name}
+                </Text>
+                <Badge size="xs" color="green" variant="light" radius="sm">
+                  {r.category}
+                </Badge>
+              </Group>
+              <Badge size="sm" color="green" radius="xl">
+                {r.score}점
+              </Badge>
+            </Group>
+            <Group gap={4} wrap="wrap">
+              <Badge
+                size="xs"
+                color="green"
+                variant="light"
+                radius="sm"
+                leftSection={
+                  <Box
+                    w={5}
+                    h={5}
+                    style={{ borderRadius: '50%', background: 'var(--mantine-color-green-6)' }}
+                  />
+                }
+              >
+                이번 달 심기 가능
+              </Badge>
+              {r.actions.map((a) => (
+                <Badge key={a.label} size="xs" color={a.color} variant="light" radius="sm">
+                  {a.label}
+                </Badge>
+              ))}
+            </Group>
           </Box>
-        </Group>
+        ))}
       </Card>
 
-      {/* floating sub-card 2 */}
-      <Card
-        radius="lg"
-        p="md"
-        withBorder
-        shadow="md"
+      {/* 오른쪽 - 영농 캘린더 예시 */}
+      <Box
         pos="absolute"
-        style={{
-          bottom: -18,
-          right: -20,
-          zIndex: 3,
-          transform: 'rotate(4deg)',
-          background: 'white',
-          minWidth: 180,
-        }}
+        style={{ bottom: 30, right: -18, zIndex: 3, width: 255, transform: 'rotate(4deg)' }}
         visibleFrom="sm"
       >
-        <Group gap={10} wrap="nowrap">
-          <ThemeIcon size={36} radius="md" color="teal" variant="light">
-            <IconChartLine size={18} />
-          </ThemeIcon>
-          <Box>
-            <Text size="xs" c="dimmed">
-              예상 연 매출
-            </Text>
-            <Text fw={800} fz={14} c="teal.7">
-              ₩42.6M
-            </Text>
-          </Box>
-        </Group>
-      </Card>
+        <MiniCalendar />
+      </Box>
     </Box>
   );
 }
 
-function MiniStars({ value }: { value: number }) {
+// AI 작목 추천 예시 - 실제 추천 결과 카드 양식(순위·카테고리·작업·점수)
+const CROP_RECS: {
+  rank: number;
+  name: string;
+  category: string;
+  score: number;
+  actions: { label: string; color: string }[];
+}[] = [
+  {
+    rank: 1,
+    name: '상추',
+    category: '잎채소',
+    score: 90,
+    actions: [
+      { label: '정식', color: 'teal' },
+      { label: '수확', color: 'orange' },
+    ],
+  },
+  {
+    rank: 2,
+    name: '시금치',
+    category: '잎채소',
+    score: 90,
+    actions: [
+      { label: '파종', color: 'green' },
+      { label: '관리', color: 'gray' },
+    ],
+  },
+  {
+    rank: 3,
+    name: '열무',
+    category: '잎채소',
+    score: 86,
+    actions: [
+      { label: '파종', color: 'green' },
+      { label: '수확', color: 'orange' },
+    ],
+  },
+];
+
+// 영농 캘린더 예시 - 카테고리 색 점으로 단일 작업 표현
+const CAL_DOTS: Record<number, string[]> = {
+  3: ['lime'],
+  6: ['red'],
+  27: ['teal'],
+  29: ['green'],
+};
+// 기간형 작업 - 겹치면 여러 줄로 표시
+const CAL_BARS: { start: number; end: number; color: string }[] = [
+  { start: 7, end: 10, color: 'green' }, // 정식 기간
+  { start: 13, end: 16, color: 'teal' }, // 생육 관리
+  { start: 22, end: 26, color: 'orange' }, // 수확 기간
+];
+const CAL_LEAD = 2; // 26년 7월 (수)
+const CAL_SELECTED = 15;
+// 방문 요일(연한 초록 배경)
+const CAL_VISIT_WD = new Set([0, 3, 5]);
+
+function MiniCalendar() {
+  const cells: (number | null)[] = [
+    ...Array.from({ length: CAL_LEAD }, () => null),
+    ...Array.from({ length: 31 }, (_, i) => i + 1),
+  ];
+  // 막대 레인 배치: 겹치는 기간은 다른 레인(줄)으로 쌓는다.
+  const sorted = [...CAL_BARS].sort((a, b) => a.start - b.start);
+  const laneEnds: number[] = [];
+  const laneOf = new Map<(typeof CAL_BARS)[number], number>();
+  for (const b of sorted) {
+    let lane = laneEnds.findIndex((e) => e < b.start);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(b.end);
+    } else {
+      laneEnds[lane] = b.end;
+    }
+    laneOf.set(b, lane);
+  }
+  const laneCount = laneEnds.length;
+  const barAt = (d: number, lane: number) =>
+    CAL_BARS.find((b) => laneOf.get(b) === lane && d >= b.start && d <= b.end);
   return (
-    <Group gap={1}>
-      {[1, 2, 3, 4, 5].map((i) => (
-        <Text key={i} c={i <= value ? 'yellow.6' : 'gray.3'} fw={700} fz={14} lh={1}>
-          ★
+    <Card radius="xl" p="md" withBorder shadow="lg" bg="white">
+      <Group justify="space-between" align="center" mb={8}>
+        <Text fw={800} fz={13}>
+          7월
         </Text>
-      ))}
-    </Group>
+        <Badge size="xs" color="green" variant="light" radius="sm">
+          토마토
+        </Badge>
+      </Group>
+      <SimpleGrid cols={7} spacing={1} verticalSpacing={3}>
+        {['월', '화', '수', '목', '금', '토', '일'].map((w) => (
+          <Text key={w} ta="center" fz={9} c="dimmed" fw={700}>
+            {w}
+          </Text>
+        ))}
+        {cells.map((d, i) => {
+          const selected = d === CAL_SELECTED;
+          const visit = d != null && CAL_VISIT_WD.has(i % 7);
+          return (
+            <Box
+              key={i}
+              style={{
+                aspectRatio: '1 / 1',
+                borderRadius: 5,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'flex-start',
+                paddingTop: 2,
+                background: selected
+                  ? 'var(--mantine-color-green-1)'
+                  : visit
+                    ? 'var(--mantine-color-green-0)'
+                    : undefined,
+                border: selected ? '1px solid var(--mantine-color-green-4)' : undefined,
+              }}
+            >
+              {d && (
+                <Text fz={9} fw={selected ? 700 : 500} lh={1}>
+                  {d}
+                </Text>
+              )}
+              {d != null && laneCount > 0 && (
+                <Stack gap={1} mt={1} style={{ width: '100%' }}>
+                  {Array.from({ length: laneCount }, (_, lane) => {
+                    const b = barAt(d, lane);
+                    return (
+                      <Box
+                        key={lane}
+                        style={{
+                          width: '100%',
+                          height: 3,
+                          background: b ? `var(--mantine-color-${b.color}-5)` : 'transparent',
+                          borderTopLeftRadius: b && d === b.start ? 2 : 0,
+                          borderBottomLeftRadius: b && d === b.start ? 2 : 0,
+                          borderTopRightRadius: b && d === b.end ? 2 : 0,
+                          borderBottomRightRadius: b && d === b.end ? 2 : 0,
+                        }}
+                      />
+                    );
+                  })}
+                </Stack>
+              )}
+              {d && CAL_DOTS[d] && (
+                <Group gap={1} mt={1} justify="center">
+                  {CAL_DOTS[d].map((c, j) => (
+                    <Box
+                      key={j}
+                      w={3}
+                      h={3}
+                      style={{ borderRadius: '50%', background: `var(--mantine-color-${c}-6)` }}
+                    />
+                  ))}
+                </Group>
+              )}
+            </Box>
+          );
+        })}
+      </SimpleGrid>
+    </Card>
   );
 }
+
+const FEATURES: {
+  icon: ReactNode;
+  title: string;
+  desc: string;
+  tag: string;
+  color: string;
+  href: string;
+  disabled?: boolean;
+}[] = [
+  {
+    icon: <IconLeaf size={22} />,
+    title: 'AI 작목 추천',
+    desc: '지역·자본·시설로 적합 작목 TOP 3 가려내기',
+    tag: 'XGBoost · 우수농가 112호',
+    color: 'green',
+    href: '/planting',
+  },
+  {
+    icon: <IconMessageCircle size={22} />,
+    title: '챗봇 상담',
+    desc: '작목·재배 궁금증을 AI 챗봇에게 바로 물어보기',
+    tag: 'RAG 챗봇 상담',
+    color: 'teal',
+    href: '/planting/chat',
+  },
+  {
+    icon: <IconBook2 size={22} />,
+    title: '재배 정보',
+    desc: '작목 검색 → 농사로 길잡이 + GPT 키포인트 + PDF',
+    tag: '농사로 · 작목별농업기술정보',
+    color: 'grape',
+    href: '/cultivation',
+  },
+  {
+    icon: <IconCalendarEvent size={22} />,
+    title: '영농 캘린더',
+    desc: '날짜별 농사 계획 · 작업 일정 자동 생성',
+    tag: '농사 계획 빌더',
+    color: 'lime',
+    href: '/calendar',
+  },
+];
 
 function Features() {
   return (
@@ -393,50 +533,19 @@ function Features() {
             농사 전 과정을 받쳐주는
             <br />
             <Text span inherit c="green.7">
-              4가지 AI
+              핵심 기능 4가지
             </Text>
           </Title>
-          <Text c="dimmed" ta="center" maw={520} mt="xs">
-            추천부터 출하까지, 1년 사이클 어디에 있든 데이터로 다음 선택을 잡아드립니다.
+          <Text c="dimmed" ta="center" maw={570} mt="xs">
+            추천부터 캘린더까지, 1년 사이클 어디에 있든 바로 이어서 작업할 수 있어요.
           </Text>
         </Stack>
         <Grid gutter="lg">
-          <GridCol span={{ base: 12, sm: 6, md: 3 }}>
-            <FeatureCard
-              icon={<IconLeaf size={22} />}
-              title="AI 작목 추천"
-              desc="지역·자본·시설을 분석해 적합 작목 TOP 3를 가려냅니다."
-              tag="XGBoost"
-              color="green"
-            />
-          </GridCol>
-          <GridCol span={{ base: 12, sm: 6, md: 3 }}>
-            <FeatureCard
-              icon={<IconChartLine size={22} />}
-              title="디지털 트윈"
-              desc="1년 매출·노동시간·위기 시점을 미리 시뮬레이션합니다."
-              tag="시뮬레이션"
-              color="teal"
-            />
-          </GridCol>
-          <GridCol span={{ base: 12, sm: 6, md: 3 }}>
-            <FeatureCard
-              icon={<IconCalendarEvent size={22} />}
-              title="출하 대시보드"
-              desc="14일 가격 예측과 별점으로 출하 타이밍을 잡습니다."
-              tag="Prophet"
-              color="lime"
-            />
-          </GridCol>
-          <GridCol span={{ base: 12, sm: 6, md: 3 }}>
-            <FeatureCard
-              icon={<IconRobot size={22} />}
-              title="AI 코치"
-              desc="추천 이유부터 위기 대응까지 자연어로 풀어줍니다."
-              tag="GPT-4o"
-              color="grape"
-            />
-          </GridCol>
+          {FEATURES.map((f) => (
+            <GridCol key={f.title} span={{ base: 12, sm: 6, md: 3 }}>
+              <FeatureCard {...f} />
+            </GridCol>
+          ))}
         </Grid>
       </Container>
     </Box>
@@ -449,49 +558,86 @@ function FeatureCard({
   desc,
   tag,
   color,
+  href,
+  disabled,
 }: {
   icon: ReactNode;
   title: string;
   desc: string;
   tag: string;
   color: string;
+  href: string;
+  disabled?: boolean;
 }) {
+  const baseStyle = {
+    borderColor: 'var(--mantine-color-gray-2)',
+    background: 'white',
+    textDecoration: 'none',
+    color: 'inherit',
+    transition: 'transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease',
+  };
+
+  const inner = (
+    <Stack gap="md" h="100%">
+      <Group justify="space-between" align="flex-start">
+        <ThemeIcon size={48} radius="md" variant="light" color={color}>
+          {icon}
+        </ThemeIcon>
+        {disabled ? (
+          <Badge size="xs" color="gray" variant="light" radius="sm">
+            준비 중
+          </Badge>
+        ) : (
+          <IconArrowUpRight size={16} color="var(--mantine-color-gray-5)" />
+        )}
+      </Group>
+      <Box>
+        <Title order={5} mb={6} fz={17}>
+          {title}
+        </Title>
+        <Text size="sm" c="dimmed" lh={1.6}>
+          {desc}
+        </Text>
+      </Box>
+      <Badge
+        variant="light"
+        color={color}
+        radius="sm"
+        size="sm"
+        mt="auto"
+        style={{ alignSelf: 'flex-start' }}
+      >
+        {tag}
+      </Badge>
+    </Stack>
+  );
+
+  if (disabled) {
+    return (
+      <Card
+        radius="lg"
+        p="lg"
+        withBorder
+        h="100%"
+        style={{ ...baseStyle, opacity: 0.5, cursor: 'default' }}
+      >
+        {inner}
+      </Card>
+    );
+  }
+
   return (
     <Card
+      component={Link}
+      href={href}
       radius="lg"
       p="lg"
       withBorder
       h="100%"
       className="kw-feature-card"
-      style={{
-        borderColor: 'var(--mantine-color-gray-2)',
-        background: 'white',
-        transition: 'transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease',
-      }}
+      style={baseStyle}
     >
-      <Stack gap="md" h="100%">
-        <ThemeIcon size={48} radius="md" variant="light" color={color}>
-          {icon}
-        </ThemeIcon>
-        <Box>
-          <Title order={5} mb={6} fz={17}>
-            {title}
-          </Title>
-          <Text size="sm" c="dimmed" lh={1.6}>
-            {desc}
-          </Text>
-        </Box>
-        <Badge
-          variant="light"
-          color={color}
-          radius="sm"
-          size="sm"
-          mt="auto"
-          style={{ alignSelf: 'flex-start' }}
-        >
-          {tag}
-        </Badge>
-      </Stack>
+      {inner}
     </Card>
   );
 }
@@ -635,7 +781,7 @@ function FinalCTA() {
             </Button>
             <Button
               component={Link}
-              href="/dashboard"
+              href="/calendar"
               size="xl"
               radius="md"
               variant="outline"
@@ -647,7 +793,7 @@ function FinalCTA() {
                 },
               }}
             >
-              대시보드 보기
+              영농 캘린더 보기
             </Button>
           </Group>
         </Stack>
@@ -690,8 +836,8 @@ function Footer() {
             <Anchor component={Link} href="/planting" size="sm" c="dimmed">
               추천받기
             </Anchor>
-            <Anchor component={Link} href="/dashboard" size="sm" c="dimmed">
-              대시보드
+            <Anchor component={Link} href="/calendar" size="sm" c="dimmed">
+              영농 캘린더
             </Anchor>
             <Anchor size="sm" c="dimmed" href="https://kiwofarm.com">
               kiwofarm.com

@@ -1,11 +1,28 @@
 import { apiClient } from './client';
-import type { CropOption, CropSummary, CultivationGuide } from '@/lib/types';
+import type {
+  CropCatalogItem,
+  CropOption,
+  CropSummary,
+  CultivationGuide,
+} from '@/lib/types';
 
 export async function searchCrops(q: string, limit = 10): Promise<CropOption[]> {
   const trimmed = q.trim();
   if (!trimmed) return [];
   const { data } = await apiClient.get<CropOption[]>('/api/v1/crops/search', {
     params: { q: trimmed, limit },
+  });
+  return data;
+}
+
+// 작목별농업기술정보(cropEbook) 작목 카탈로그 검색 — 캘린더 작물 선택용.
+// 백엔드 첫 호출은 카테고리 트리 순회로 ~6초, 이후 1시간 캐시되어 즉시 응답.
+export async function searchCropCatalog(q: string): Promise<CropCatalogItem[]> {
+  const trimmed = q.trim();
+  if (!trimmed) return [];
+  const { data } = await apiClient.get<CropCatalogItem[]>('/api/v1/crops/catalog', {
+    params: { q: trimmed },
+    timeout: 30_000,
   });
   return data;
 }

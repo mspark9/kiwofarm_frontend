@@ -174,7 +174,7 @@ function TwinInner({ cropId }: { cropId: string }) {
                   c="green.8"
                   leftSection={<IconRocket size={18} />}
                   component={Link}
-                  href="/dashboard"
+                  href="/calendar"
                 >
                   이 작목으로 시작하기
                 </Button>

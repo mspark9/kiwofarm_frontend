@@ -65,7 +65,7 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import dayjs from 'dayjs';
-import { searchCrops } from '@/lib/api/crops';
+import { searchCropCatalog } from '@/lib/api/crops';
 import {
   createPlan,
   createPlansBatch,
@@ -84,7 +84,7 @@ import { PROVINCE_OPTIONS, getCitiesByProvince } from '@/lib/regions';
 import type {
   AreaUnit,
   BatchFailure,
-  CropOption,
+  CropCatalogItem,
   FarmPlan,
   FarmPlanCreate,
   FarmTask,
@@ -203,8 +203,8 @@ export default function CalendarPage() {
 
 // 작물별로 따로 설정하는 한 줄(작목 + 그 작물만의 시작일·지역·면적·방문요일).
 interface CropEntry {
-  key: string; // item_code:kind_code 
-  crop: CropOption;
+  key: string; // 작목 코드(subCategoryCode)
+  crop: CropCatalogItem;
   startDate: Date | null;
   province: string | null;
   city: string | null;
@@ -213,7 +213,7 @@ interface CropEntry {
   visitDays: number[];
 }
 
-const cropEntryKey = (c: CropOption) => `${c.item_code}:${c.kind_code}`;
+const cropEntryKey = (c: CropCatalogItem) => c.code;
 
 interface DraftValues {
   startDate: Date | null;
@@ -228,7 +228,7 @@ function SetupForm({ tabs }: { tabs?: ReactNode }) {
   const router = useRouter();
   const { add } = usePlanIds();
 
-  const [crop, setCrop] = useState<CropOption | null>(null);
+  const [crop, setCrop] = useState<CropCatalogItem | null>(null);
   const [draft, setDraft] = useState<DraftValues>(() => ({
     startDate: new Date(),
     province: null,
@@ -248,7 +248,7 @@ function SetupForm({ tabs }: { tabs?: ReactNode }) {
     return null;
   };
 
-  const draftToEntry = (c: CropOption): CropEntry => ({
+  const draftToEntry = (c: CropCatalogItem): CropEntry => ({
     key: cropEntryKey(c),
     crop: c,
     startDate: draft.startDate,
@@ -338,9 +338,9 @@ function SetupForm({ tabs }: { tabs?: ReactNode }) {
     }
     const payloads: FarmPlanCreate[] = all.map((e) => ({
       startDate: dayjs(e.startDate).format(FMT),
-      itemCode: e.crop.item_code,
-      kindCode: e.crop.kind_code,
-      cropName: e.crop.item_name,
+      itemCode: e.crop.code,
+      kindCode: '0',
+      cropName: e.crop.name,
       region: [e.province, e.city].filter(Boolean).join(' '),
       province: e.province ?? undefined,
       area: typeof e.area === 'number' ? e.area : 0,
@@ -357,11 +357,11 @@ function SetupForm({ tabs }: { tabs?: ReactNode }) {
       <Container size="sm">
         <Stack gap="lg">
           <Group justify="space-between" align="center" wrap="nowrap">
-            <UnstyledButton component={Link} href="/dashboard">
+            <UnstyledButton component={Link} href="/">
               <Group gap={6}>
                 <IconArrowLeft size={14} />
                 <Text size="sm" c="dimmed">
-                  대시보드로
+                  홈으로
                 </Text>
               </Group>
             </UnstyledButton>
@@ -567,15 +567,14 @@ function QueuedCrop({ entry, onRemove }: { entry: CropEntry; onRemove: () => voi
     >
       <Group justify="space-between" wrap="nowrap">
         <Box style={{ minWidth: 0 }}>
-          <Group gap={6} wrap="nowrap">
-            <Badge color="green" variant="light" radius="sm" size="sm">
-              {entry.crop.group_name}
-            </Badge>
-            <Text fw={700} fz={14}>
-              {entry.crop.kind_name}
-            </Text>
-            <Text size="xs" c="dimmed">
-              {entry.crop.item_name}
+          <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+            {entry.crop.category && (
+              <Badge color="green" variant="light" radius="sm" size="sm">
+                {entry.crop.category}
+              </Badge>
+            )}
+            <Text fw={700} fz={14} truncate>
+              {entry.crop.name}
             </Text>
           </Group>
           <Text size="xs" c="dimmed" mt={2} truncate>
@@ -591,18 +590,18 @@ function QueuedCrop({ entry, onRemove }: { entry: CropEntry; onRemove: () => voi
   );
 }
 
-// 작목 검색 + 단일 선택 (기존 /crops/search 재사용). 선택하면 카드로 표시, 변경 가능.
+// 작물 검색 + 단일 선택 (농사로 작목별농업기술정보 카탈로그). 선택하면 카드로 표시, 변경 가능.
 function CropPicker({
   value,
   onChange,
 }: {
-  value: CropOption | null;
-  onChange: (c: CropOption | null) => void;
+  value: CropCatalogItem | null;
+  onChange: (c: CropCatalogItem | null) => void;
 }) {
   const [q, setQ] = useState('');
   const searchQ = useQuery({
-    queryKey: ['crops', 'search', q],
-    queryFn: () => searchCrops(q, 20),
+    queryKey: ['crop-catalog', 'search', q],
+    queryFn: () => searchCropCatalog(q),
     enabled: !value && q.trim().length >= 1,
     staleTime: 60_000,
   });
@@ -611,7 +610,7 @@ function CropPicker({
     return (
       <Box>
         <Text size="sm" fw={500} mb={4}>
-          작목 <span style={{ color: 'var(--mantine-color-red-6)' }}>*</span>
+          작물 <span style={{ color: 'var(--mantine-color-red-6)' }}>*</span>
         </Text>
         <Card
           radius="md"
@@ -621,16 +620,17 @@ function CropPicker({
           style={{ borderColor: 'var(--mantine-color-green-3)' }}
         >
           <Group justify="space-between" wrap="nowrap">
-            <Group gap={8}>
-              <Badge color="green" variant="light" radius="sm">
-                {value.group_name}
-              </Badge>
-              <Text fw={700}>{value.kind_name}</Text>
-              <Text size="sm" c="dimmed">
-                {value.item_name}
+            <Group gap={8} style={{ minWidth: 0 }}>
+              {value.category && (
+                <Badge color="green" variant="light" radius="sm">
+                  {value.category}
+                </Badge>
+              )}
+              <Text fw={700} truncate>
+                {value.name}
               </Text>
             </Group>
-            <UnstyledButton onClick={() => onChange(null)} aria-label="작목 변경">
+            <UnstyledButton onClick={() => onChange(null)} aria-label="작물 변경">
               <IconX size={16} color="var(--mantine-color-gray-6)" />
             </UnstyledButton>
           </Group>
@@ -642,9 +642,9 @@ function CropPicker({
   return (
     <Box>
       <TextInput
-        label="작목"
+        label="작물"
         withAsterisk
-        placeholder="예: 토마토, 상추, 고추…"
+        placeholder="예: 토마토, 상추, 대파…"
         value={q}
         onChange={(e) => setQ(e.currentTarget.value)}
         leftSection={<IconSearch size={16} />}
@@ -661,7 +661,7 @@ function CropPicker({
             <Stack gap={2} mah={220} style={{ overflowY: 'auto' }}>
               {searchQ.data.map((c) => (
                 <UnstyledButton
-                  key={`${c.item_code}-${c.kind_code}`}
+                  key={c.code}
                   onClick={() => {
                     onChange(c);
                     setQ('');
@@ -671,14 +671,13 @@ function CropPicker({
                   className="kw-crop-opt"
                 >
                   <Group gap={8} wrap="nowrap">
-                    <Badge size="xs" color="gray" variant="light" radius="sm">
-                      {c.group_name}
-                    </Badge>
-                    <Text size="sm" fw={600}>
-                      {c.kind_name}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      {c.item_name}
+                    {c.category && (
+                      <Badge size="xs" color="gray" variant="light" radius="sm">
+                        {c.category}
+                      </Badge>
+                    )}
+                    <Text size="sm" fw={600} truncate>
+                      {c.name}
                     </Text>
                   </Group>
                 </UnstyledButton>

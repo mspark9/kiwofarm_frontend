@@ -18,11 +18,10 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import {
-  IconChartLine,
+  IconBook2,
+  IconCalendarEvent,
   IconChevronDown,
   IconLeaf,
-  IconBuildingBank,
-  IconBuildingStore,
   IconLogin2,
   IconMenu2,
   IconMessageCircle,
@@ -34,9 +33,8 @@ type MenuLink = { label: string; href: string; icon: React.ReactNode };
 const MENU_LINKS: MenuLink[] = [
   { label: '작목 추천', href: '/planting', icon: <IconLeaf size={16} /> },
   { label: '챗봇 상담', href: '/planting/chat', icon: <IconMessageCircle size={16} /> },
-  { label: '대시보드', href: '/dashboard', icon: <IconChartLine size={16} /> },
-  { label: '판매 도우미', href: '/sales', icon: <IconBuildingStore size={16} /> },
-  { label: '지원사업', href: '/support', icon: <IconBuildingBank size={16} /> },
+  { label: '재배 정보', href: '/cultivation', icon: <IconBook2 size={16} /> },
+  { label: '영농 캘린더', href: '/calendar', icon: <IconCalendarEvent size={16} /> },
 ];
 
 export function SiteHeader() {
