@@ -226,6 +226,12 @@ export interface FarmPlan {
   memos: TaskMemo[];
 }
 
+// 메모 저장·사진 업로드 응답 — 이번 저장으로 얻은 점수('+N점' 토스트용).
+export interface FarmPlanWithPoints extends FarmPlan {
+  pointsEarned: number;
+  pointsTotal: number;
+}
+
 // ───────────── 수확 인증 · 보상 (도감/뱃지/Streak) ─────────────
 
 export interface HarvestRecipe {
@@ -305,11 +311,43 @@ export interface CompareOut {
   crop?: CropCompareOut | null;
 }
 
+export interface PointsOut {
+  total: number;
+  memoCount: number;
+  photoCount: number;
+  harvestCount: number;
+}
+
 export interface RewardsSummary {
   collection: CollectionOut;
   badges: BadgeOut[];
   streak: StreakOut;
+  points: PointsOut;
   compare?: CompareOut | null;
+}
+
+// 일지(메모·사진 누적) 기반 수확 인증
+export interface JournalVerdict {
+  crop_match: boolean;
+  growth_consistent: boolean;
+  has_harvest: boolean;
+  fake_suspect: boolean;
+  quantity: string;
+  confidence: number;
+  reason: string;
+  summary: string;
+}
+
+export interface HarvestJournalResponse {
+  verified: boolean;
+  demoMode: boolean;
+  recordId?: number | null;
+  verdict?: JournalVerdict | null;
+  warnings: string[];
+  card?: HarvestCard | null; // 통과 시에만
+  newBadges: BadgeOut[];
+  pointsTotal: number;
+  message: string;
 }
 
 // ───────────── 주간 다이제스트 · 위기 알림 (캘린더) ─────────────
