@@ -10,11 +10,16 @@ import {
   Group,
   Menu,
   Modal,
+  PasswordInput,
+  SegmentedControl,
   Stack,
   Text,
+  TextInput,
   ThemeIcon,
   UnstyledButton,
 } from '@mantine/core';
+import type { Session } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 import {
   IconBook2,
   IconCalendarEvent,
@@ -40,6 +45,7 @@ export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -47,6 +53,20 @@ export function SiteHeader() {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  const logout = async () => {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    // 게스트(공용 데모) 데이터로 전환 — 캐시·화면 상태 초기화를 위해 새로고침
+    window.location.href = '/';
+  };
 
   return (
     <>
@@ -128,16 +148,32 @@ export function SiteHeader() {
                   </Menu.Item>
                 ))}
                 <Menu.Divider />
-                <Menu.Item
-                  onClick={() => setLoginOpen(true)}
-                  leftSection={
-                    <ThemeIcon size={22} radius="md" variant="light" color="gray">
-                      <IconLogin2 size={16} />
-                    </ThemeIcon>
-                  }
-                >
-                  로그인
-                </Menu.Item>
+                {session ? (
+                  <>
+                    <Menu.Label>{session.user.email}</Menu.Label>
+                    <Menu.Item
+                      onClick={logout}
+                      leftSection={
+                        <ThemeIcon size={22} radius="md" variant="light" color="gray">
+                          <IconLogin2 size={16} />
+                        </ThemeIcon>
+                      }
+                    >
+                      로그아웃
+                    </Menu.Item>
+                  </>
+                ) : (
+                  <Menu.Item
+                    onClick={() => setLoginOpen(true)}
+                    leftSection={
+                      <ThemeIcon size={22} radius="md" variant="light" color="gray">
+                        <IconLogin2 size={16} />
+                      </ThemeIcon>
+                    }
+                  >
+                    로그인
+                  </Menu.Item>
+                )}
               </Menu.Dropdown>
             </Menu>
           </Group>
@@ -246,8 +282,51 @@ export function SiteHeader() {
   );
 }
 
-// 베타 기간 안내 — 계정 체계 도입 전까지 기록은 브라우저(디바이스 ID)에 자동 연결된다.
+// Supabase Auth 이메일 로그인/회원가입. 비로그인은 게스트(공용 체험 데이터)로 동작.
 function LoginModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    if (!supabase) return;
+    setError(null);
+    setNotice(null);
+    setLoading(true);
+    try {
+      if (mode === 'signup') {
+        const { data, error: e } = await supabase.auth.signUp({ email, password });
+        if (e) throw e;
+        if (!data.session) {
+          // 이메일 확인이 켜진 프로젝트 — 세션 없이 가입만 완료된 경우
+          setNotice('가입 확인 메일을 보냈습니다. 메일의 링크를 누른 뒤 로그인해 주세요.');
+          return;
+        }
+      } else {
+        const { error: e } = await supabase.auth.signInWithPassword({ email, password });
+        if (e) throw e;
+      }
+      // 계정 데이터로 전환 — 게스트(공용 데모) 화면 상태를 비우기 위해 새로고침
+      window.location.href = '/calendar';
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(
+        /invalid login credentials/i.test(msg)
+          ? '이메일 또는 비밀번호가 올바르지 않습니다.'
+          : /already registered/i.test(msg)
+            ? '이미 가입된 이메일입니다. 로그인해 주세요.'
+            : /at least 6/i.test(msg)
+              ? '비밀번호는 6자 이상이어야 합니다.'
+              : msg,
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Modal
       opened={opened}
@@ -265,22 +344,76 @@ function LoginModal({ opened, onClose }: { opened: boolean; onClose: () => void 
             <IconUserCircle size={26} />
           </ThemeIcon>
           <Text fw={800} fz={22}>
-            베타 기간엔 로그인 없이 써요
+            {mode === 'login' ? '로그인' : '회원가입'}
           </Text>
           <Text size="sm" c="dimmed" ta="center">
-            농사 계획·일지·도감·점수는 지금 쓰는 브라우저에 자동으로 연결되어
-            저장됩니다. 같은 브라우저로 접속하면 기록이 그대로 이어집니다.
+            내 농사 계획·일지·도감을 계정에 보관하고 어디서든 이어보세요.
           </Text>
         </Stack>
 
-        <Alert color="green" radius="md" variant="light">
-          정식 출시 때 이메일·카카오 계정 연동이 제공될 예정입니다. 그때 지금
-          기록을 계정으로 옮겨드릴게요.
-        </Alert>
+        {supabase ? (
+          <>
+            <SegmentedControl
+              fullWidth
+              value={mode}
+              onChange={(v) => {
+                setMode(v as 'login' | 'signup');
+                setError(null);
+                setNotice(null);
+              }}
+              data={[
+                { value: 'login', label: '로그인' },
+                { value: 'signup', label: '회원가입' },
+              ]}
+            />
+            <Stack gap="sm">
+              <TextInput
+                label="이메일"
+                placeholder="you@kiwofarm.com"
+                autoFocus
+                value={email}
+                onChange={(e) => setEmail(e.currentTarget.value)}
+              />
+              <PasswordInput
+                label="비밀번호"
+                placeholder="6자 이상"
+                value={password}
+                onChange={(e) => setPassword(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void submit();
+                }}
+              />
+            </Stack>
+            {error && (
+              <Alert color="red" radius="md" variant="light">
+                {error}
+              </Alert>
+            )}
+            {notice && (
+              <Alert color="green" radius="md" variant="light">
+                {notice}
+              </Alert>
+            )}
+            <Button
+              color="green"
+              size="md"
+              loading={loading}
+              disabled={!email || password.length < 6}
+              onClick={() => void submit()}
+            >
+              {mode === 'login' ? '로그인' : '가입하기'}
+            </Button>
+          </>
+        ) : (
+          <Alert color="yellow" radius="md" variant="light">
+            로그인 설정이 아직 연결되지 않았습니다. 지금은 게스트 모드(공용 체험
+            데이터)로 이용할 수 있어요.
+          </Alert>
+        )}
 
-        <Button color="green" size="md" onClick={onClose}>
-          확인
-        </Button>
+        <Text size="xs" c="dimmed" ta="center">
+          로그인하지 않아도 게스트 모드로 모든 기능을 체험할 수 있습니다.
+        </Text>
       </Stack>
     </Modal>
   );
