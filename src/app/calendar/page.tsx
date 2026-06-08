@@ -26,6 +26,7 @@ import {
   Grid,
   Group,
   Loader,
+  Modal,
   NumberInput,
   SegmentedControl,
   Select,
@@ -38,6 +39,7 @@ import {
   TextInput,
   ThemeIcon,
   Title,
+  Tooltip,
   UnstyledButton,
 } from '@mantine/core';
 import { Calendar, DatePickerInput } from '@mantine/dates';
@@ -46,6 +48,7 @@ import {
   IconAlertCircle,
   IconAlertTriangle,
   IconArrowLeft,
+  IconBasket,
   IconCalendarPlus,
   IconCheck,
   IconChevronLeft,
@@ -64,6 +67,7 @@ import {
   IconTrash,
   IconX,
 } from '@tabler/icons-react';
+import { isAxiosError } from 'axios';
 import dayjs from 'dayjs';
 import { searchCropCatalog } from '@/lib/api/crops';
 import {
@@ -78,6 +82,7 @@ import {
   uploadMemoImages,
   upsertMemo,
 } from '@/lib/api/farmplan';
+import { verifyHarvestJournal } from '@/lib/api/rewards';
 import { mediaUrl } from '@/lib/constants';
 import { usePlanIds } from '@/lib/planStore';
 import {
@@ -93,6 +98,7 @@ import type {
   FarmPlan,
   FarmPlanCreate,
   FarmTask,
+  HarvestJournalResponse,
   GrowConditions,
   TaskCategory,
 } from '@/lib/types';
@@ -1447,6 +1453,23 @@ function PlanView({ planId, tabs }: { planId: number; tabs?: ReactNode }) {
 }
 
 function PlanHeader({ plan }: { plan: FarmPlan }) {
+  const [harvestResult, setHarvestResult] = useState<HarvestJournalResponse | null>(null);
+  const photoCount = plan.memos.reduce((n, m) => n + m.images.length, 0);
+  const memoDays = plan.memos.filter((m) => m.content.trim() || m.images.length > 0).length;
+
+  const harvestMut = useMutation({
+    mutationFn: () => verifyHarvestJournal(plan.id),
+    onSuccess: setHarvestResult,
+    onError: (e) =>
+      notifications.show({
+        color: 'red',
+        message:
+          isAxiosError(e) && typeof e.response?.data?.detail === 'string'
+            ? e.response.data.detail
+            : '수확 인증 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+      }),
+  });
+
   const visitValue =
     (plan.visitDays?.length ?? 0) > 0
       ? `${[...(plan.visitDays ?? [])]
@@ -1494,7 +1517,34 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
             {plan.cropName} 농사 계획
           </Title>
         </Box>
+        <Stack gap={4} align="flex-end">
+          <Tooltip
+            label="기르는 동안 캘린더에 사진을 1장 이상 남겨야 인증할 수 있어요"
+            disabled={photoCount > 0}
+          >
+            <Button
+              color="orange"
+              radius="md"
+              leftSection={<IconBasket size={16} />}
+              loading={harvestMut.isPending}
+              disabled={photoCount === 0}
+              onClick={() => harvestMut.mutate()}
+            >
+              수확했어요
+            </Button>
+          </Tooltip>
+          <Text size="xs" c="dimmed">
+            {harvestMut.isPending
+              ? 'AI가 일지를 분석하고 있어요…'
+              : `기록 ${memoDays}일 · 사진 ${photoCount}장 분석`}
+          </Text>
+        </Stack>
       </Group>
+      <HarvestResultModal
+        result={harvestResult}
+        cropName={plan.cropName}
+        onClose={() => setHarvestResult(null)}
+      />
       <Group gap="md" mt="md" wrap="nowrap" align="stretch">
         {summarySegments.map((seg, i) => (
           <Fragment key={seg.key}>
@@ -1511,6 +1561,97 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
         ))}
       </Group>
     </Card>
+  );
+}
+
+// '수확했어요' 일지 인증 결과 — 성공 시 도감 등록 안내 + 새 뱃지, 실패 시 사유.
+function HarvestResultModal({
+  result,
+  cropName,
+  onClose,
+}: {
+  result: HarvestJournalResponse | null;
+  cropName: string;
+  onClose: () => void;
+}) {
+  return (
+    <Modal
+      opened={!!result}
+      onClose={onClose}
+      centered
+      radius="lg"
+      title={
+        <Text fw={800} fz="lg">
+          {result?.verified ? '수확 인증 완료 🎉' : '수확 인증 실패'}
+        </Text>
+      }
+    >
+      {result && (
+        <Stack gap="md">
+          <Alert
+            color={result.verified ? 'orange' : 'gray'}
+            radius="md"
+            icon={result.verified ? <IconBasket size={16} /> : <IconAlertCircle size={16} />}
+          >
+            {result.message}
+          </Alert>
+
+          {result.verified && result.verdict?.summary && (
+            <Box>
+              <Text size="sm" fw={700} mb={4}>
+                나의 재배 여정
+              </Text>
+              <Text size="sm" c="dimmed">
+                {result.verdict.summary}
+              </Text>
+              {result.verdict.quantity && (
+                <Text size="sm" mt={4}>
+                  수확량: {result.verdict.quantity}
+                </Text>
+              )}
+            </Box>
+          )}
+
+          {result.newBadges.length > 0 && (
+            <Box>
+              <Text size="sm" fw={700} mb={6}>
+                새로 획득한 뱃지
+              </Text>
+              <Group gap="xs">
+                {result.newBadges.map((b) => (
+                  <Badge key={b.id} size="lg" variant="light" color="yellow" radius="md">
+                    {b.emoji} {b.name}
+                  </Badge>
+                ))}
+              </Group>
+            </Box>
+          )}
+
+          {result.verified ? (
+            <Group justify="space-between" align="center">
+              <Text size="sm" c="dimmed">
+                누적 {result.pointsTotal.toLocaleString()}점
+              </Text>
+              <Button
+                component={Link}
+                href="/collection"
+                color="orange"
+                radius="md"
+                leftSection={<IconSparkles size={16} />}
+              >
+                {cropName} 도감 보러가기
+              </Button>
+            </Group>
+          ) : (
+            <Group justify="flex-end">
+              <Button variant="light" color="gray" radius="md" onClick={onClose}>
+                기록 더 쌓고 다시 인증하기
+              </Button>
+            </Group>
+          )}
+        </Stack>
+      )}
+    </Modal>
   );
 }
 
@@ -2035,7 +2176,13 @@ function DayPanel({
     mutationFn: (content: string) => upsertMemo(planId, key!, content),
     onSuccess: (p) => {
       onChange(p);
-      notifications.show({ color: 'grape', message: '메모를 저장했습니다.' });
+      notifications.show({
+        color: 'grape',
+        message:
+          p.pointsEarned > 0
+            ? `메모를 저장했습니다. +${p.pointsEarned}점 (누적 ${p.pointsTotal.toLocaleString()}점)`
+            : '메모를 저장했습니다.',
+      });
     },
   });
 
@@ -2043,7 +2190,13 @@ function DayPanel({
     mutationFn: (files: File[]) => uploadMemoImages(planId, key!, files),
     onSuccess: (p) => {
       onChange(p);
-      notifications.show({ color: 'grape', message: '사진을 첨부했습니다.' });
+      notifications.show({
+        color: 'grape',
+        message:
+          p.pointsEarned > 0
+            ? `사진을 첨부했습니다. +${p.pointsEarned}점 (누적 ${p.pointsTotal.toLocaleString()}점)`
+            : '사진을 첨부했습니다.',
+      });
     },
     onError: () =>
       notifications.show({

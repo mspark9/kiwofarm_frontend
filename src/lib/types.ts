@@ -244,6 +244,132 @@ export interface FarmPlan {
   memos: TaskMemo[];
 }
 
+// 메모 저장·사진 업로드 응답 — 이번 저장으로 얻은 점수('+N점' 토스트용).
+export interface FarmPlanWithPoints extends FarmPlan {
+  pointsEarned: number;
+  pointsTotal: number;
+}
+
+// ───────────── 수확 인증 · 보상 (도감/뱃지/Streak) ─────────────
+
+export interface HarvestRecipe {
+  name: string;
+  nutrients: Record<string, string>;
+}
+
+export interface HarvestCardLink {
+  label: string;
+  url: string;
+}
+
+export interface HarvestCard {
+  cropSlug: string;
+  cropName: string;
+  category: string;
+  source: 'nongsaro:monthFd' | 'ai';
+  storage: string;
+  eating: string;
+  nutrition: string;
+  seasonMonths: number[];
+  recipes: HarvestRecipe[];
+  links: HarvestCardLink[];
+}
+
+export interface CollectionEntry {
+  cropSlug: string;
+  cropName: string;
+  category: string;
+  difficulty?: number | null;
+  collected: boolean;
+  harvestCount: number;
+  firstHarvestedAt?: string | null;
+  lastHarvestedAt?: string | null;
+}
+
+export interface CollectionOut {
+  totalCrops: number;
+  collectedCrops: number;
+  totalHarvests: number;
+  entries: CollectionEntry[];
+}
+
+export interface BadgeOut {
+  id: string;
+  emoji: string;
+  name: string;
+  description: string;
+  achieved: boolean;
+  progress: number; // 0~1
+  current: number;
+  threshold: number;
+}
+
+export interface StreakOut {
+  current: number;
+  best: number;
+  todayLogged: boolean;
+  totalActiveDays: number;
+}
+
+export interface CropCompareOut {
+  cropSlug: string;
+  cropName: string;
+  growers: number;
+  completionRate: number;
+  harvested: boolean;
+  message: string;
+}
+
+export interface CompareOut {
+  weeklyActiveDays: number;
+  topPercent: number; // 상위 X%
+  aboveMedian: boolean;
+  message: string; // 긍정형 문구 (중앙값 미만이면 격려)
+  communitySize: number;
+  crop?: CropCompareOut | null;
+}
+
+export interface PointsOut {
+  total: number;
+  memoCount: number;
+  photoCount: number;
+  harvestCount: number;
+}
+
+export interface RewardsSummary {
+  collection: CollectionOut;
+  badges: BadgeOut[];
+  streak: StreakOut;
+  points: PointsOut;
+  compare?: CompareOut | null;
+}
+
+// 일지(메모·사진 누적) 기반 수확 인증
+export interface JournalVerdict {
+  crop_match: boolean;
+  growth_consistent: boolean;
+  has_harvest: boolean;
+  fake_suspect: boolean;
+  quantity: string;
+  confidence: number;
+  reason: string;
+  summary: string;
+}
+
+export interface HarvestJournalResponse {
+  verified: boolean;
+  demoMode: boolean;
+  recordId?: number | null;
+  verdict?: JournalVerdict | null;
+  warnings: string[];
+  card?: HarvestCard | null; // 통과 시에만
+  newBadges: BadgeOut[];
+  pointsTotal: number;
+  message: string;
+}
+
+// ───────────── 주간 다이제스트 · 위기 알림 (캘린더) ─────────────
+
 // 주간 다이제스트 (이번 주 할 일 3가지 + 코칭 한 줄)
 export interface WeeklyTask {
   id: number;
@@ -301,270 +427,4 @@ export interface BatchFailure {
 export interface FarmPlanBatchResult {
   created: FarmPlan[];
   failed: BatchFailure[];
-}
-
-// ───────────── Shipping dashboard (existing) ─────────────
-
-export interface PricePoint {
-  date: string;
-  price: number;
-  is_forecast: boolean;
-  forecast_low?: number | null;
-  forecast_high?: number | null;
-}
-
-export interface ShippingDecision {
-  score_today: number;
-  score_in_3d: number;
-  price_today: number;
-  price_in_3d: number;
-  recommendation: string;
-  delta_pct: number;
-}
-
-export interface PeerFarmStat {
-  region: string;
-  total_farms: number;
-  farms_aligned: number;
-  note: string;
-}
-
-export interface ShippingDashboard {
-  crop_id: string;
-  crop_name: string;
-  region: string;
-  updated_at: string;
-  decision: ShippingDecision;
-  price_series: PricePoint[];
-  peer: PeerFarmStat;
-}
-
-// ───────────── 최근일자 도매가 (KAMIS dailyPriceByCategoryList) ─────────────
-
-export interface RecentPriceResponse {
-  found: boolean;
-  crop_name: string;
-  item_code: string;
-  product_cls?: string | null; // "도매" / "소매"
-  kind_name?: string | null;
-  rank?: string | null;
-  unit?: string | null;
-  obs_date?: string | null;
-  price?: number | null;
-  prev_price?: number | null;
-  delta_pct?: number | null;
-  message?: string | null;
-}
-
-// ───────────── 최근 가격추이 (recentlyPriceTrendList) ─────────────
-
-export interface TrendPoint {
-  label: string;
-  price: number;
-}
-
-export interface PriceTrendResponse {
-  found: boolean;
-  crop_name: string;
-  unit?: string | null;
-  rank?: string | null;
-  points: TrendPoint[];
-  latest?: number | null;
-  year_ago?: number | null;
-  normal?: number | null;
-  month_high?: number | null;
-  month_low?: number | null;
-  message?: string | null;
-}
-
-// ───────────── 가격 예측 (Prophet) ─────────────
-
-export interface ForecastResponse {
-  found: boolean;
-  crop_name: string;
-  unit?: string | null;
-  method?: string | null; // "prophet" / "linear"
-  horizon_days?: number;
-  series: PricePoint[]; // 최근 실측 + 예측 (is_forecast 로 구분)
-  forecast_last?: number | null;
-  forecast_last_low?: number | null;
-  forecast_last_high?: number | null;
-  message?: string | null;
-}
-
-// ───────────── AI 출하 조언 ─────────────
-
-export interface ShippingAdviceResponse {
-  found: boolean;
-  crop_name: string;
-  advice: string;
-  source: string; // "ai" / "rule" / "none"
-  current_price?: number | null;
-  unit?: string | null;
-  vs_prev_pct?: number | null;
-  vs_year_ago_pct?: number | null;
-  vs_normal_pct?: number | null;
-  trend_pct?: number | null;
-  volatility_pct?: number | null;
-  direction?: string | null;
-  forecast_price?: number | null;
-  forecast_pct?: number | null;
-  forecast_days?: number | null;
-  message?: string | null;
-}
-
-// ───────────── 판매 도우미 (로컬푸드 직매장 + 채널 비교) ─────────────
-
-export interface StoreOut {
-  id: number;
-  name: string;
-  operator: string;
-  sido: string;
-  sigungu: string;
-  address: string;
-  phone: string;
-  opened: string;
-  lat?: number | null;
-  lng?: number | null;
-  distance_km?: number | null;
-}
-
-export interface NearbyResponse {
-  found: boolean;
-  origin_lat?: number | null;
-  origin_lng?: number | null;
-  origin_label?: string | null;
-  stores: StoreOut[];
-  message?: string | null;
-}
-
-export interface ChannelOut {
-  key: string; // "direct" | "wholesale"
-  label: string;
-  source_price: number;
-  source_unit: string;
-  unit_price?: number | null; // 기준단위(kg 또는 개)당 단가
-  gross?: number | null;
-  commission_pct: number;
-  net?: number | null;
-  note: string;
-  estimated: boolean;
-}
-
-export interface CompareResponse {
-  found: boolean;
-  crop_name: string;
-  amount?: number | null;
-  amount_unit: string; // 'kg' | '개'
-  input_mode: string; // 'weight' | 'count'
-  obs_date?: string | null;
-  channels: ChannelOut[];
-  best_key?: string | null;
-  delta_net?: number | null;
-  message?: string | null;
-}
-
-// ───────────── 위치 기반 채널 추천 (가격 + 운송비 + AI) ─────────────
-
-export interface MarketOut {
-  id: number;
-  name: string;
-  category: string;
-  sido: string;
-  opened: string;
-  corp_count?: number | null;
-  merchant_count?: number | null;
-  lat?: number | null;
-  lng?: number | null;
-  distance_km?: number | null;
-}
-
-export interface PlaceOut {
-  kind: string; // 'direct' | 'wholesale'
-  name: string;
-  distance_km: number;
-  sido: string;
-  address: string;
-  phone: string;
-  lat?: number | null;
-  lng?: number | null;
-}
-
-export interface RecommendChannelOut {
-  key: string;
-  label: string;
-  net?: number | null;
-  unit_price?: number | null;
-  source_price: number;
-  source_unit: string;
-  commission_pct: number;
-  note: string;
-  estimated: boolean;
-  place?: PlaceOut | null;
-  transport_cost?: number | null;
-  net_after?: number | null;
-}
-
-export interface RecommendResponse {
-  found: boolean;
-  crop_name: string;
-  amount?: number | null;
-  amount_unit: string;
-  input_mode: string;
-  obs_date?: string | null;
-  origin_lat?: number | null;
-  origin_lng?: number | null;
-  origin_label?: string | null;
-  channels: RecommendChannelOut[];
-  best_key?: string | null;
-  delta_net_after?: number | null;
-  per_km_won: number;
-  advice: string;
-  advice_source: string; // 'ai' | 'rule' | 'none'
-  nearby_direct: StoreOut[];
-  nearby_wholesale: MarketOut[];
-  message?: string | null;
-}
-
-// 출하 → 판매 인계 (sessionStorage: kiwofarm:sales)
-export interface SalesHandoff {
-  crop: CropOption;
-  amount?: number | null;
-}
-
-// ───────────── 정부 지원사업 매칭 ─────────────
-
-export interface ApplyInfo {
-  where: string;
-  link: string;
-  phone: string;
-}
-
-export interface ProgramOut {
-  id: number;
-  name: string;
-  agency: string;
-  category: string;
-  summary: string;
-  support: string;
-  status: string; // 'eligible' | 'check'
-  reasons: string[];
-  notes: string;
-  audience: string[];
-  apply: ApplyInfo;
-  source_url: string;
-}
-
-export interface SupportMatchResponse {
-  found: boolean;
-  mode: string;
-  age?: number | null;
-  province?: string | null;
-  advice: string;
-  advice_source: string; // 'ai' | 'rule' | 'none'
-  eligible_count: number;
-  check_count: number;
-  excluded_count: number;
-  programs: ProgramOut[];
-  message?: string | null;
 }

@@ -4,6 +4,7 @@ import type {
   FarmPlan,
   FarmPlanBatchResult,
   FarmPlanCreate,
+  FarmPlanWithPoints,
   TaskStatus,
   WeeklyDigest,
 } from '@/lib/types';
@@ -95,11 +96,11 @@ export async function upsertMemo(
   planId: number,
   memoDate: string,
   content: string,
-): Promise<FarmPlan> {
-  const { data } = await apiClient.put<FarmPlan>(`/api/v1/plans/${planId}/memos`, {
-    memoDate,
-    content,
-  });
+): Promise<FarmPlanWithPoints> {
+  const { data } = await apiClient.put<FarmPlanWithPoints>(
+    `/api/v1/plans/${planId}/memos`,
+    { memoDate, content },
+  );
   return data;
 }
 
@@ -116,10 +117,10 @@ export async function uploadMemoImages(
   planId: number,
   memoDate: string,
   files: File[],
-): Promise<FarmPlan> {
+): Promise<FarmPlanWithPoints> {
   const form = new FormData();
   for (const f of files) form.append('files', f);
-  const { data } = await apiClient.post<FarmPlan>(
+  const { data } = await apiClient.post<FarmPlanWithPoints>(
     `/api/v1/plans/${planId}/memos/${memoDate}/images`,
     form,
     { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60_000 },
