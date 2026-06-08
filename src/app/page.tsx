@@ -148,19 +148,19 @@ function HeroPreview() {
         pos="relative"
         style={{
           zIndex: 2,
-          transform: 'rotate(-1.5deg)',
+          transform: 'translate(-40px, -40px)',
           borderColor: 'rgba(34,139,84,0.15)',
           background: 'linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.9))',
           backdropFilter: 'blur(8px)',
         }}
       >
-        <Group justify="space-between" align="center" mb="md">
+        <Group justify="space-between" align="center" mb="sm">
           <Group gap={8}>
             <Box
               w={26}
               h={26}
               style={{
-                borderRadius: 7,
+                borderRadius: 8,
                 background:
                   'linear-gradient(135deg, var(--mantine-color-green-5), var(--mantine-color-teal-6))',
                 display: 'grid',
@@ -168,45 +168,118 @@ function HeroPreview() {
                 color: 'white',
               }}
             >
-              <IconLeaf size={15} stroke={2.4} />
+              <IconMessageCircle size={15} stroke={2.4} />
             </Box>
-            <Text fw={800} fz={15}>
-              키워팜
-            </Text>
           </Group>
           <Badge color="green" variant="light" radius="sm" size="sm">
-            AI 영농 메뉴
+            AI 상담
           </Badge>
         </Group>
 
         <Stack gap={8}>
-          {FEATURES.map((f) => (
-            <Group
-              key={f.title}
-              gap={10}
-              wrap="nowrap"
-              p="9px 11px"
+          <Group gap={6} align="flex-start" wrap="nowrap">
+            <ThemeIcon size={22} radius="xl" color="green" variant="light">
+              <IconMessageCircle size={12} />
+            </ThemeIcon>
+            <Box
               style={{
-                borderRadius: 11,
-                border: '1px solid var(--mantine-color-gray-2)',
-                background: 'white',
+                background: 'var(--mantine-color-gray-1)',
+                borderRadius: 12,
+                borderTopLeftRadius: 3,
+                padding: '8px 11px',
+                maxWidth: '82%',
               }}
             >
-              <ThemeIcon size={34} radius="md" variant="light" color={f.color}>
-                {f.icon}
-              </ThemeIcon>
-              <Box style={{ minWidth: 0, flex: 1 }}>
-                <Text fw={700} fz={13} lh={1.25}>
-                  {f.title}
-                </Text>
-                <Text size="xs" c="dimmed" truncate>
-                  {f.tag}
-                </Text>
-              </Box>
-              <IconArrowUpRight size={15} color="var(--mantine-color-gray-4)" />
-            </Group>
-          ))}
+              <Text fz={12} lh={1.45}>
+                이번 달 추천 작물은 상추·시금치예요. 궁금한 점을 물어보세요.
+              </Text>
+            </Box>
+          </Group>
+
+          <Group justify="flex-end">
+            <Box
+              style={{
+                background: 'var(--mantine-color-green-6)',
+                borderRadius: 12,
+                borderTopRightRadius: 3,
+                padding: '8px 11px',
+                maxWidth: '82%',
+              }}
+            >
+              <Text fz={12} lh={1.45} c="white">
+                씨앗으로 할까 모종으로 할까?
+              </Text>
+            </Box>
+          </Group>
+
+          <Group gap={6} align="flex-start" wrap="nowrap">
+            <ThemeIcon size={22} radius="xl" color="green" variant="light">
+              <IconMessageCircle size={12} />
+            </ThemeIcon>
+            <Box
+              style={{
+                background: 'var(--mantine-color-gray-1)',
+                borderRadius: 12,
+                borderTopLeftRadius: 3,
+                padding: '8px 11px',
+                maxWidth: '82%',
+              }}
+            >
+              <Text fz={12} lh={1.45}>
+                초보라면 모종이 더 쉬워요. 씨앗은 흙을 얕게 덮어주세요.
+              </Text>
+            </Box>
+          </Group>
+
+          <Group justify="flex-end">
+            <Box
+              style={{
+                background: 'var(--mantine-color-green-6)',
+                borderRadius: 12,
+                borderTopRightRadius: 3,
+                padding: '8px 11px',
+                maxWidth: '82%',
+              }}
+            >
+              <Text fz={12} lh={1.45} c="white">
+                물은 얼마나 자주 줘야 적당한건가요?
+              </Text>
+            </Box>
+          </Group>
+
+          <Group gap={6} align="flex-start" wrap="nowrap">
+            <ThemeIcon size={22} radius="xl" color="green" variant="light">
+              <IconMessageCircle size={12} />
+            </ThemeIcon>
+            <Box
+              style={{
+                background: 'var(--mantine-color-gray-1)',
+                borderRadius: 12,
+                borderTopLeftRadius: 3,
+                padding: '8px 11px',
+                maxWidth: '82%',
+              }}
+            >
+              <Text fz={12} lh={1.45}>
+                흙이 마르면 아침에 듬뿍 주세요. 보통 2~3일에 한 번이면 충분해요.
+              </Text>
+            </Box>
+          </Group>
         </Stack>
+
+        <Group gap={6} mt="sm" wrap="wrap">
+          {['물은 얼마나 자주 주나요?', '다음 달엔 뭘 심지?'].map((q) => (
+            <Badge
+              key={q}
+              variant="default"
+              radius="xl"
+              size="sm"
+              styles={{ root: { fontWeight: 500, textTransform: 'none' } }}
+            >
+              {q}
+            </Badge>
+          ))}
+        </Group>
       </Card>
 
       {/* 왼쪽 - AI 작목 추천 예시 */}
@@ -217,7 +290,7 @@ function HeroPreview() {
         shadow="md"
         pos="absolute"
         style={{
-          top: 90,
+          top: 140,
           left: -210,
           zIndex: 3,
           width: 290,
@@ -297,7 +370,7 @@ function HeroPreview() {
       {/* 오른쪽 - 영농 캘린더 예시 */}
       <Box
         pos="absolute"
-        style={{ bottom: 30, right: -18, zIndex: 3, width: 255, transform: 'rotate(4deg)' }}
+        style={{ bottom: -20, right: -18, zIndex: 3, width: 255, transform: 'rotate(4deg)' }}
         visibleFrom="sm"
       >
         <MiniCalendar />

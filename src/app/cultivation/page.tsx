@@ -228,8 +228,8 @@ function EmptyHint() {
           <IconSeeding size={26} />
         </ThemeIcon>
         <Title order={5}>작물을 검색해 주세요</Title>
-        <Text size="sm" c="gray.7" ta="center" maw={440}>
-          작물명·키워드를 입력하면 농사로 텃밭가꾸기에서 일치하는 글이 표시되고, 누르면 재배 정보 본문을 받아옵니다.
+        <Text size="sm" c="gray.7" ta="center" maw={490}>
+          작물명을 입력하면 농사로 텃밭가꾸기에서 일치하는 글이 표시됩니다.
         </Text>
       </Stack>
     </Card>

@@ -3,6 +3,7 @@
 // 위저드 플로우 검증용 최소 결과 화면. 정식 추천카드(미니 캘린더·작물 상세 링크)는 다음 단계.
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -11,6 +12,7 @@ import {
   Box,
   Button,
   Card,
+  Checkbox,
   Container,
   Group,
   List,
@@ -23,13 +25,19 @@ import {
 import {
   IconAlertTriangle,
   IconArrowLeft,
+  IconCalendarPlus,
   IconChecks,
   IconMessageCircle,
   IconSparkles,
 } from '@tabler/icons-react';
 import type { PlantingInput, RecommendationItem } from '@/lib/api/planting';
 import { fetchPlantingRecommend } from '@/lib/api/planting';
-import { loadPlantingInput, savePlantingResult } from '@/lib/planting/storage';
+import type { CarryCrop } from '@/lib/planting/storage';
+import {
+  loadPlantingInput,
+  savePlantingCarryCrops,
+  savePlantingResult,
+} from '@/lib/planting/storage';
 
 const ACTION_COLOR: Record<string, string> = {
   파종: 'green',
@@ -39,7 +47,10 @@ const ACTION_COLOR: Record<string, string> = {
 };
 
 export default function PlantingResultPage() {
+  const router = useRouter();
   const [input, setInput] = useState<PlantingInput | null | undefined>(undefined);
+  // 캘린더로 함께 넘길 작물(crop_id) 다중 선택.
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
     setInput(loadPlantingInput());
@@ -55,6 +66,24 @@ export default function PlantingResultPage() {
   useEffect(() => {
     if (query.data) savePlantingResult(query.data);
   }, [query.data]);
+
+  const toggle = (cropId: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(cropId)) next.delete(cropId);
+      else next.add(cropId);
+      return next;
+    });
+
+  // 선택한 작물들을 세션에 담아 캘린더로 이동(추천받기 조건도 함께 캐리).
+  const goCalendar = () => {
+    const crops: CarryCrop[] = (query.data?.recommendations ?? [])
+      .filter((r) => selected.has(r.crop_id))
+      .map((r) => ({ code: r.crop_id, name: r.name, category: r.category }));
+    if (crops.length === 0) return;
+    savePlantingCarryCrops(crops);
+    router.push('/calendar?from=planting');
+  };
 
   return (
     <Box bg="gray.0" mih="100vh" py={{ base: 24, md: 48 }}>
@@ -115,7 +144,13 @@ export default function PlantingResultPage() {
 
               <Stack gap="md">
                 {query.data.recommendations.map((it, idx) => (
-                  <CropCard key={it.crop_id} item={it} rank={idx + 1} />
+                  <CropCard
+                    key={it.crop_id}
+                    item={it}
+                    rank={idx + 1}
+                    checked={selected.has(it.crop_id)}
+                    onToggle={() => toggle(it.crop_id)}
+                  />
                 ))}
               </Stack>
 
@@ -126,6 +161,18 @@ export default function PlantingResultPage() {
                   </Text>
                 </Card>
               )}
+
+              <Button
+                color="green"
+                size="md"
+                leftSection={<IconCalendarPlus size={18} />}
+                disabled={selected.size === 0}
+                onClick={goCalendar}
+              >
+                {selected.size > 0
+                  ? `선택한 ${selected.size}개로 캘린더 만들기`
+                  : '작물을 선택하면 캘린더를 만들 수 있어요'}
+              </Button>
 
               <Button
                 component={Link}
@@ -145,11 +192,27 @@ export default function PlantingResultPage() {
   );
 }
 
-function CropCard({ item, rank }: { item: RecommendationItem; rank: number }) {
+function CropCard({
+  item,
+  rank,
+  checked,
+  onToggle,
+}: {
+  item: RecommendationItem;
+  rank: number;
+  checked: boolean;
+  onToggle: () => void;
+}) {
   const actions = Array.from(new Set(item.calendar_this_month.map((a) => a.action)));
   const [dMin, dMax] = item.days_to_harvest;
   return (
-    <Card radius="lg" p="lg" withBorder bg="white">
+    <Card
+      radius="lg"
+      p="lg"
+      withBorder
+      bg={checked ? 'green.0' : 'white'}
+      style={{ borderColor: checked ? 'var(--mantine-color-green-5)' : undefined }}
+    >
       <Stack gap="sm">
         <Group justify="space-between" align="flex-start">
           <Group gap="xs">
@@ -227,6 +290,14 @@ function CropCard({ item, rank }: { item: RecommendationItem; rank: number }) {
             </Stack>
           </Card>
         )}
+
+        <Checkbox
+          checked={checked}
+          onChange={onToggle}
+          color="green"
+          label="캘린더에 추가"
+          styles={{ label: { fontWeight: 600, cursor: 'pointer' }, input: { cursor: 'pointer' } }}
+        />
       </Stack>
     </Card>
   );

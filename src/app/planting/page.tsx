@@ -38,6 +38,7 @@ import {
   IconSun,
 } from '@tabler/icons-react';
 import type { Direction, PlantingInput } from '@/lib/api/planting';
+import type { AreaUnit } from '@/lib/types';
 import {
   DIRECTION_OPTIONS,
   EXP_OPTIONS,
@@ -80,7 +81,8 @@ export default function PlantingWizardPage() {
       sun_hours: saved?.sun_hours ?? defaultPlantingInput.sun_hours,
       experience: saved?.experience ?? defaultPlantingInput.experience,
       direction: saved?.direction ?? null,
-      area_m2: saved?.area_m2 ?? null,
+      area: saved?.area ?? null,
+      areaUnit: saved?.areaUnit ?? 'pyeong',
       frequency: saved?.frequency ?? null,
       start: saved?.start ?? 'now',
       facility: saved?.facility ?? [],
@@ -173,17 +175,27 @@ export default function PlantingWizardPage() {
               </FieldRow>
 
               <FieldRow icon={<IconRuler2 size={16} />} label="규모 (면적, 선택)">
-                <NumberInput
-                  min={0}
-                  step={0.5}
-                  decimalScale={1}
-                  suffix=" ㎡"
-                  placeholder="대략적인 면적 (화분만 쓰면 비워두세요)"
-                  value={form.values.area_m2 ?? undefined}
-                  onChange={(v) =>
-                    form.setFieldValue('area_m2', v === '' || v === undefined ? null : Number(v))
-                  }
-                />
+                <Group gap="sm" align="flex-start" wrap="nowrap">
+                  <NumberInput
+                    flex={1}
+                    min={0}
+                    hideControls
+                    placeholder="대략적인 면적 (화분만 쓰면 비워두세요)"
+                    value={form.values.area ?? undefined}
+                    onChange={(v) =>
+                      form.setFieldValue('area', v === '' || v === undefined ? null : Number(v))
+                    }
+                  />
+                  <SegmentedControl
+                    data={[
+                      { value: 'pyeong', label: '평' },
+                      { value: 'sqm', label: 'm²' },
+                      { value: 'hectare', label: 'ha' },
+                    ]}
+                    value={form.values.areaUnit ?? 'pyeong'}
+                    onChange={(v) => form.setFieldValue('areaUnit', v as AreaUnit)}
+                  />
+                </Group>
               </FieldRow>
 
               <FieldRow icon={<IconLeaf size={16} />} label="경험">

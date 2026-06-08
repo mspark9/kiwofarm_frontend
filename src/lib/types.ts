@@ -174,6 +174,15 @@ export type TaskCategory =
 
 export type TaskStatus = 'planned' | 'done' | 'delayed';
 
+// 추천받기(작목 추천) 위저드에서 입력한 재배 조건. 캘린더 일정 생성 시 GPT가 함께 고려.
+export interface GrowConditions {
+  place?: string; // 재배 장소 (베란다·옥상·노지·실내)
+  sunHours?: string; // 일조 시간 (<3h·3~5h·>5h)
+  experience?: string; // 영농 경험 (처음·1~2년·3년+)
+  facility?: string[]; // 시설 (화분·플랜터·비닐터널·미니온실)
+  direction?: string; // 방향 (남향·동향·서향·북향)
+}
+
 export interface FarmPlanCreate {
   startDate: string; // YYYY-MM-DD
   itemCode: string;
@@ -185,6 +194,7 @@ export interface FarmPlanCreate {
   areaUnit: AreaUnit;
   visitFrequency?: string; // weekly_1 | weekly_2 | weekly_3 | daily
   visitDays?: number[]; // 0=일 ~ 6=토
+  growConditions?: GrowConditions; // 추천받기 조건 캐리(선택)
 }
 
 export interface FarmTask {
