@@ -92,7 +92,7 @@ export default function PlantingResultPage() {
       .map((r) => ({ code: r.crop_id, name: r.name, category: r.category }));
     if (crops.length === 0) return;
     savePlantingCarryCrops(crops);
-    router.push('/calendar?from=planting');
+    router.push('/planting/plan?from=planting');
   };
 
   return (
