@@ -19,6 +19,7 @@ import {
 import {
   IconArrowRight,
   IconArrowUpRight,
+  IconAward,
   IconBook2,
   IconCalendarEvent,
   IconClock,
@@ -242,7 +243,7 @@ function HeroPreview() {
               }}
             >
               <Text fz={12} lh={1.45} c="white">
-                물은 얼마나 자주 줘야 적당한건가요?
+                물은 얼마나 자주 줘야 적당한가요?
               </Text>
             </Box>
           </Group>
@@ -584,6 +585,14 @@ const FEATURES: {
     color: 'lime',
     href: '/calendar',
   },
+  {
+    icon: <IconAward size={22} />,
+    title: '작물 도감',
+    desc: '수확 인증으로 도감 채우고 뱃지·연속 기록 모으기',
+    tag: '도감 · 뱃지 · Streak',
+    color: 'orange',
+    href: '/collection',
+  },
 ];
 
 function Features() {
@@ -606,20 +615,18 @@ function Features() {
             농사 전 과정을 받쳐주는
             <br />
             <Text span inherit c="green.7">
-              핵심 기능 4가지
+              핵심 기능 5가지
             </Text>
           </Title>
           <Text c="dimmed" ta="center" maw={570} mt="xs">
             추천부터 캘린더까지, 1년 사이클 어디에 있든 바로 이어서 작업할 수 있어요.
           </Text>
         </Stack>
-        <Grid gutter="lg">
+        <SimpleGrid cols={{ base: 1, xs: 2, sm: 3, md: 5 }} spacing="lg">
           {FEATURES.map((f) => (
-            <GridCol key={f.title} span={{ base: 12, sm: 6, md: 3 }}>
-              <FeatureCard {...f} />
-            </GridCol>
+            <FeatureCard key={f.title} {...f} />
           ))}
-        </Grid>
+        </SimpleGrid>
       </Container>
     </Box>
   );

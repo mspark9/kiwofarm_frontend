@@ -402,6 +402,20 @@ export interface GardenDetail {
   fileName?: string | null;
 }
 
+// 텃밭가꾸기 본문 → GPT 재배 요약(글검색 대신 핵심만).
+export interface GardenSource {
+  cntntsNo: string;
+  title: string;
+}
+
+export interface GardenSummary {
+  crop: string;
+  headline: string;
+  keyPoints: string[];
+  sources: GardenSource[];
+  mode: string; // 'garden'(텃밭 본문 기반) | 'general'(작물명 일반지식)
+}
+
 // 위기 알림 (병해충 발생정보 + 기상 특보) — 트윈의 CrisisAlert 와 구분해 PlanAlert.
 export interface PlanAlert {
   type: string; // pest | weather

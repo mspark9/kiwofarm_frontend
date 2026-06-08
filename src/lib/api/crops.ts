@@ -40,6 +40,18 @@ export async function fetchCultivation(
   return data;
 }
 
+// 작목 코드(subCategoryCode) → 농업기술길잡이 e-book 목록. 재배정보에서 텃밭가꾸기와 함께 표시.
+export async function fetchCatalogEbooks(
+  subCategoryCode: string,
+  cropName?: string,
+): Promise<CultivationGuide> {
+  const { data } = await apiClient.get<CultivationGuide>(
+    `/api/v1/crops/catalog/${encodeURIComponent(subCategoryCode)}/ebooks`,
+    { params: cropName ? { cropName } : undefined, timeout: 30_000 },
+  );
+  return data;
+}
+
 // RAG(농사로 PDF → 청크 → 임베딩 → pgvector 검색) + GPT 요약. 첫 호출 10~30초, 캐시 후 즉시.
 export async function fetchCropSummary(
   itemCode: string,
