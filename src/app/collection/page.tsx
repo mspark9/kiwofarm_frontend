@@ -29,6 +29,7 @@ import {
 } from '@tabler/icons-react';
 import { fetchCompare, fetchHarvestCard, fetchRewardsSummary } from '@/lib/api/rewards';
 import { cropEmoji } from '@/lib/cropEmoji';
+import { cropIconSrc } from '@/lib/cropIcon';
 import type { BadgeOut, CollectionEntry } from '@/lib/types';
 
 const MONTH_LABEL = (m: number) => `${m}월`;
@@ -212,6 +213,30 @@ function BadgeChip({ badge }: { badge: BadgeOut }) {
   );
 }
 
+/** 작물 아이콘 — public/svg 의 SVG. 대응 파일이 없으면 이모지로 폴백. */
+function CropIcon({ slug, size, dimmed }: { slug: string; size: number; dimmed?: boolean }) {
+  const src = cropIconSrc(slug);
+  const dimStyle = dimmed ? { filter: 'grayscale(1)', opacity: 0.35 } : undefined;
+  if (src) {
+    // 정적 SVG 아이콘이라 next/image 최적화가 불필요해 일반 img 사용.
+    // eslint-disable-next-line @next/next/no-img-element
+    return (
+      <img
+        src={src}
+        alt=""
+        width={size}
+        height={size}
+        style={{ display: 'block', objectFit: 'contain', ...dimStyle }}
+      />
+    );
+  }
+  return (
+    <Text fz={size} lh={1} style={dimStyle}>
+      {cropEmoji(slug)}
+    </Text>
+  );
+}
+
 function CropTile({ entry, onOpen }: { entry: CollectionEntry; onOpen: () => void }) {
   const collected = entry.collected;
   return (
@@ -229,9 +254,7 @@ function CropTile({ entry, onOpen }: { entry: CollectionEntry; onOpen: () => voi
       className={collected ? 'kw-feature-card' : undefined}
     >
       <Stack gap={6} align="center">
-        <Text fz={36} lh={1} style={collected ? undefined : { filter: 'grayscale(1)', opacity: 0.35 }}>
-          {cropEmoji(entry.cropSlug)}
-        </Text>
+        <CropIcon slug={entry.cropSlug} size={60} dimmed={!collected} />
         <Text fw={700} size="sm" c={collected ? 'dark' : 'dimmed'}>
           {entry.cropName}
         </Text>
@@ -295,9 +318,18 @@ function HarvestCardModal({
           >
             <Group justify="space-between" align="flex-start">
               <Group gap="md">
-                <Text fz={48} lh={1}>
-                  {cropEmoji(entry.cropSlug)}
-                </Text>
+                <Box
+                  style={{
+                    background: 'white',
+                    borderRadius: 16,
+                    width: 76,
+                    height: 76,
+                    display: 'grid',
+                    placeItems: 'center',
+                  }}
+                >
+                  <CropIcon slug={entry.cropSlug} size={54} />
+                </Box>
                 <Box>
                   <Group gap={6}>
                     <Title order={3} c="white">
