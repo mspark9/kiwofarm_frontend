@@ -1,3 +1,4 @@
+import type { AreaUnit } from '@/lib/types';
 import { apiClient } from './client';
 
 // 백엔드 app/schemas/planting.py 와 1:1 대응.
@@ -14,12 +15,30 @@ export interface PlantingInput {
   sun_hours: SunHours;
   experience: Experience;
   direction?: Direction | null;
-  area_m2?: number | null;
+  // 면적은 캘린더와 동일하게 값(area) + 단위(areaUnit)로 입력. 백엔드에는 ㎡(area_m2)로 환산해 전송.
+  area?: number | null;
+  areaUnit?: AreaUnit;
   frequency?: string | null;
   start: StartWhen;
   facility: string[];
   prefs: string[];
   top_n: number;
+}
+
+// 면적 단위 → ㎡ 환산(1평=3.305785㎡, 1ha=10000㎡).
+export function areaToM2(
+  area: number | null | undefined,
+  unit: AreaUnit | undefined,
+): number | null {
+  if (typeof area !== 'number' || area <= 0) return null;
+  switch (unit) {
+    case 'sqm':
+      return area;
+    case 'hectare':
+      return area * 10000;
+    default: // pyeong
+      return Math.round(area * 3.305785 * 10) / 10;
+  }
 }
 
 export interface CalendarAction {
@@ -77,9 +96,10 @@ export interface CropSummary {
 export async function fetchPlantingRecommend(
   input: PlantingInput,
 ): Promise<PlantingRecommendResponse> {
+  // 백엔드는 area_m2(㎡)로 점수를 매긴다 → 값+단위를 ㎡로 환산해 함께 전송.
   const { data } = await apiClient.post<PlantingRecommendResponse>(
     '/api/v1/planting/recommend',
-    input,
+    { ...input, area_m2: areaToM2(input.area, input.areaUnit) },
   );
   return data;
 }

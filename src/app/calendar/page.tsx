@@ -86,6 +86,11 @@ import {
 import { verifyHarvestJournal } from '@/lib/api/rewards';
 import { mediaUrl } from '@/lib/constants';
 import { usePlanIds } from '@/lib/planStore';
+import {
+  clearPlantingCarryCrops,
+  loadPlantingCarryCrops,
+  loadPlantingInput,
+} from '@/lib/planting/storage';
 import { PROVINCE_OPTIONS, getCitiesByProvince } from '@/lib/regions';
 import type {
   AreaUnit,
@@ -95,6 +100,7 @@ import type {
   FarmPlanCreate,
   FarmTask,
   HarvestJournalResponse,
+  GrowConditions,
   TaskCategory,
 } from '@/lib/types';
 
@@ -242,8 +248,33 @@ interface DraftValues {
   visitDays: number[];
 }
 
+// 추천받기 frequency('매일'·'주2~3회'·'주말만') → 방문 요일(0=일~6=토).
+function freqToVisitDays(freq: string | null | undefined): number[] {
+  switch (freq) {
+    case '매일':
+      return []; // 비우면 매일 가능
+    case '주2~3회':
+      return [3, 6]; // 수·토
+    case '주말만':
+      return [6, 0]; // 토·일
+    default:
+      return [6];
+  }
+}
+
+// 추천받기 sigungu("경기도 성남시") → province / city.
+function splitSigungu(sigungu: string): { province: string | null; city: string | null } {
+  const s = sigungu.trim();
+  if (!s) return { province: null, city: null };
+  const i = s.indexOf(' ');
+  return i < 0
+    ? { province: s, city: null }
+    : { province: s.slice(0, i), city: s.slice(i + 1) || null };
+}
+
 function SetupForm({ tabs }: { tabs?: ReactNode }) {
   const router = useRouter();
+  const params = useSearchParams();
   const { add } = usePlanIds();
 
   const [crop, setCrop] = useState<CropCatalogItem | null>(null);
@@ -256,6 +287,77 @@ function SetupForm({ tabs }: { tabs?: ReactNode }) {
     visitDays: [6], // 기본: 토요일
   }));
   const [queue, setQueue] = useState<CropEntry[]>([]);
+  // 추천받기에서 넘어온 재배 조건(생성 시 백엔드로 전달).
+  const [growConditions, setGrowConditions] = useState<GrowConditions | null>(null);
+
+  // 추천받기(?from=planting)에서 들어오면 선택 작물(1개 이상)·지역·면적·시작일·방문요일을 프리필.
+  useEffect(() => {
+    if (params.get('from') !== 'planting') return;
+    const input = loadPlantingInput();
+    const carry = loadPlantingCarryCrops();
+    if (!input && !carry) return;
+
+    // 추천받기 조건으로 폼 기본값 계산.
+    const next: DraftValues = {
+      startDate: new Date(),
+      province: null,
+      city: null,
+      area: 300,
+      areaUnit: 'pyeong',
+      visitDays: [6],
+    };
+    if (input) {
+      const { province, city } = splitSigungu(input.sigungu);
+      const hasArea = typeof input.area === 'number' && input.area > 0;
+      next.province = province ?? next.province;
+      next.city = city ?? next.city;
+      if (hasArea) {
+        next.area = input.area as number;
+        next.areaUnit = input.areaUnit ?? 'pyeong';
+      }
+      next.startDate =
+        input.start === 'next_month'
+          ? dayjs().add(1, 'month').startOf('month').toDate()
+          : new Date();
+      if (input.frequency) next.visitDays = freqToVisitDays(input.frequency);
+      setGrowConditions({
+        place: input.place,
+        sunHours: input.sun_hours,
+        experience: input.experience,
+        facility: input.facility?.length ? input.facility : undefined,
+        direction: input.direction ?? undefined,
+      });
+    }
+    setDraft(next);
+
+    // 선택 작물: 1개면 현재 입력칸에, 2개 이상이면 대기 목록(배치 생성)에 채운다.
+    if (carry && carry.length > 0) {
+      const crops: CropCatalogItem[] = carry.map((c) => ({
+        code: c.code,
+        name: c.name,
+        category: c.category,
+      }));
+      if (crops.length === 1) {
+        setCrop(crops[0]);
+      } else {
+        setQueue(
+          crops.map((c) => ({
+            key: c.code,
+            crop: c,
+            startDate: next.startDate,
+            province: next.province,
+            city: next.city,
+            area: next.area,
+            areaUnit: next.areaUnit,
+            visitDays: next.visitDays,
+          })),
+        );
+        setCrop(null);
+      }
+      clearPlantingCarryCrops();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const setDf = (patch: Partial<DraftValues>) => setDraft((d) => ({ ...d, ...patch }));
 
@@ -364,6 +466,7 @@ function SetupForm({ tabs }: { tabs?: ReactNode }) {
       area: typeof e.area === 'number' ? e.area : 0,
       areaUnit: e.areaUnit,
       visitDays: e.visitDays.length ? [...e.visitDays].sort((a, b) => a - b) : undefined,
+      growConditions: growConditions ?? undefined,
     }));
     createMut.mutate(payloads);
   };
@@ -428,6 +531,19 @@ function SetupForm({ tabs }: { tabs?: ReactNode }) {
                   ))}
                   <Divider my={4} label="다음 작물" labelPosition="center" />
                 </Stack>
+              )}
+
+              {growConditions && (
+                <Alert
+                  color="green"
+                  variant="light"
+                  radius="md"
+                  icon={<IconSparkles size={16} />}
+                  py={8}
+                >
+                  추천받기에서 입력한 조건(지역·면적·시작 시기·재배 환경)을 자동으로 채웠어요. 필요하면
+                  수정할 수 있고, 일정 생성 시 재배 환경도 함께 고려됩니다.
+                </Alert>
               )}
 
               <CropPicker value={crop} onChange={setCrop} />

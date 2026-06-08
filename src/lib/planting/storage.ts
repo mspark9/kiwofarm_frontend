@@ -15,7 +15,8 @@ export const defaultPlantingInput: PlantingInput = {
   sun_hours: '3~5h',
   experience: '처음',
   direction: null,
-  area_m2: null,
+  area: null,
+  areaUnit: 'pyeong',
   frequency: null,
   start: 'now',
   facility: [],
@@ -27,7 +28,14 @@ export function loadPlantingInput(): PlantingInput | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = window.localStorage.getItem(PLANTING_INPUT_KEY);
-    return raw ? { ...defaultPlantingInput, ...JSON.parse(raw) } : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PlantingInput> & { area_m2?: number | null };
+    // 구버전(area_m2 ㎡ 단독) → area + areaUnit('sqm') 마이그레이션.
+    if (parsed.area == null && typeof parsed.area_m2 === 'number') {
+      parsed.area = parsed.area_m2;
+      parsed.areaUnit = 'sqm';
+    }
+    return { ...defaultPlantingInput, ...parsed };
   } catch {
     return null;
   }
@@ -38,6 +46,42 @@ export function savePlantingInput(input: PlantingInput): void {
     window.localStorage.setItem(PLANTING_INPUT_KEY, JSON.stringify(input));
   } catch {
     /* 저장 실패는 무시 — 추천 자체는 동작 */
+  }
+}
+
+// ── 추천 결과 → 캘린더 핸드오프(선택한 작물 1개 이상). 세션 한정. ──
+export const PLANTING_CARRY_KEY = 'kiwofarm:planting:carry-crops';
+
+export interface CarryCrop {
+  code: string; // 작물 코드(추천 crop_id)
+  name: string;
+  category: string;
+}
+
+export function savePlantingCarryCrops(crops: CarryCrop[]): void {
+  try {
+    window.sessionStorage.setItem(PLANTING_CARRY_KEY, JSON.stringify(crops));
+  } catch {
+    /* 무시 */
+  }
+}
+
+export function loadPlantingCarryCrops(): CarryCrop[] | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(PLANTING_CARRY_KEY);
+    const arr = raw ? (JSON.parse(raw) as CarryCrop[]) : null;
+    return Array.isArray(arr) && arr.length > 0 ? arr : null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearPlantingCarryCrops(): void {
+  try {
+    window.sessionStorage.removeItem(PLANTING_CARRY_KEY);
+  } catch {
+    /* 무시 */
   }
 }
 
