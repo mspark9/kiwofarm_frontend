@@ -21,7 +21,6 @@ import {
   IconArrowUpRight,
   IconBook2,
   IconCalendarEvent,
-  IconClock,
   IconDatabase,
   IconLeaf,
   IconMessageCircle,
@@ -56,7 +55,7 @@ function Hero() {
                 leftSection={<IconSparkles size={14} />}
                 styles={{ root: { paddingLeft: 12, paddingRight: 12, height: 30 } }}
               >
-                AI 영농 의사결정 플랫폼
+                AI 텃밭 추천·관리 플랫폼
               </Badge>
 
               <Title
@@ -66,7 +65,9 @@ function Hero() {
                 lh={1.12}
                 style={{ letterSpacing: -1.6 }}
               >
-                처음 농사도,
+                처음 텃밭도,
+                <br />
+                뭘 심을지
                 <br />
                 <Text
                   span
@@ -79,14 +80,13 @@ function Hero() {
                     backgroundClip: 'text',
                   }}
                 >
-                  1년을 미리
-                </Text>{' '}
-                본다.
+                  AI가 골라준다
+                </Text>
               </Title>
 
               <Text size="lg" c="dimmed" maw={520} lh={1.65}>
-                지역·자본·시설만 입력하면 AI가 적합 작목 3개를 추천하고, 1년 매출과 위기 시점까지
-                미리 시뮬레이션해 보여줍니다.
+                지역·장소·일조만 입력하면 AI가 지금 심기 좋은 작목을 골라주고, 파종부터 수확까지
+                영농 캘린더로 챙겨드립니다.
               </Text>
 
               <Group gap="md" mt="xs">
@@ -107,8 +107,8 @@ function Hero() {
               </Group>
 
               <Group gap="xl" mt="md" wrap="wrap">
-                <TrustItem icon={<IconShieldCheck size={14} />} text="공공데이터 4종 연동" />
-                <TrustItem icon={<IconDatabase size={14} />} text="우수농가 112호 학습" />
+                <TrustItem icon={<IconShieldCheck size={14} />} text="심는 법부터 수확까지" />
+                <TrustItem icon={<IconDatabase size={14} />} text="농사로 공공데이터 기반" />
                 <TrustItem icon={<IconSparkles size={14} />} text="GPT-4o 자연어 코치" />
               </Group>
             </Stack>
@@ -482,8 +482,8 @@ const FEATURES: {
   {
     icon: <IconLeaf size={22} />,
     title: 'AI 작목 추천',
-    desc: '지역·자본·시설로 적합 작목 TOP 3 가려내기',
-    tag: 'XGBoost · 우수농가 112호',
+    desc: '지역·장소·일조로 지금 심기 좋은 작목 가려내기',
+    tag: '농사로 데이터 · AI 설명',
     color: 'green',
     href: '/planting',
   },
@@ -656,26 +656,26 @@ function Stats() {
       <Grid gutter={{ base: 'xl', md: 40 }}>
         <GridCol span={{ base: 12, sm: 4 }}>
           <Stat
-            icon={<IconDatabase size={18} />}
-            number="112호"
-            label="학습 데이터"
-            sub="우수농가 5호 + 혁신밸리 107호"
-          />
-        </GridCol>
-        <GridCol span={{ base: 12, sm: 4 }}>
-          <Stat
             icon={<IconLeaf size={18} />}
-            number="50종"
-            label="추천 가능 작목"
-            sub="시설·노지·특용작물 망라"
+            number="40종"
+            label="추천 작목"
+            sub="잎·열매·뿌리채소 + 허브"
           />
         </GridCol>
         <GridCol span={{ base: 12, sm: 4 }}>
           <Stat
-            icon={<IconClock size={18} />}
-            number="14일"
-            label="가격 예측 범위"
-            sub="KAMIS 도매가 기반 Prophet"
+            icon={<IconCalendarEvent size={18} />}
+            number="12개월"
+            label="영농 캘린더"
+            sub="파종~수확 작업 자동 생성"
+          />
+        </GridCol>
+        <GridCol span={{ base: 12, sm: 4 }}>
+          <Stat
+            icon={<IconMessageCircle size={18} />}
+            number="AI 챗봇"
+            label="작목 상담"
+            sub="재배 궁금증을 바로 답변"
           />
         </GridCol>
       </Grid>
@@ -762,7 +762,7 @@ function FinalCTA() {
             5분이면 충분합니다.
           </Title>
           <Text ta="center" size="lg" maw={520} lh={1.65} style={{ color: 'rgba(255,255,255,0.88)' }}>
-            조건 몇 가지만 알려주시면 AI가 작목 TOP 3와
+            조건 몇 가지만 알려주시면 AI가 심기 좋은 작목과
             <br />
             1년 영농 계획을 만들어 드립니다.
           </Text>
@@ -826,7 +826,7 @@ function Footer() {
               <Text fw={800}>키워팜</Text>
             </Group>
             <Text size="xs" c="dimmed">
-              © 2026 KiwoFarm · 공공데이터 활용 AI 영농 플랫폼
+              © 2026 KiwoFarm · 공공데이터 활용 AI 텃밭 플랫폼
             </Text>
           </Stack>
           <Group gap="lg">
