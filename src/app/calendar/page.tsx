@@ -78,6 +78,7 @@ import {
   getPlan,
   getPlanAlerts,
   getWeeklyDigest,
+  listPlans,
   updateTask,
   uploadMemoImages,
   upsertMemo,
@@ -158,6 +159,17 @@ function CalendarRoot() {
   useEffect(() => {
     if (planId) add(planId);
   }, [planId, add]);
+
+  // 서버의 내 계획 목록(로그인 계정 또는 게스트 공용 데이터)을 탭에 합류 —
+  // 기기를 옮겨도, 게스트 체험 데이터도 localStorage 없이 바로 보이게.
+  const serverPlansQ = useQuery({
+    queryKey: ['plans', 'list'],
+    queryFn: listPlans,
+    staleTime: 30_000,
+  });
+  useEffect(() => {
+    for (const p of serverPlansQ.data ?? []) add(p.id);
+  }, [serverPlansQ.data, add]);
 
   // 탭·모두보기를 위해 보관된 모든 계획을 로드 (PlanView 와 동일 queryKey → 캐시 공유)
   const planQueries = useQueries({

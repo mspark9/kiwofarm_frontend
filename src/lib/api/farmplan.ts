@@ -55,6 +55,12 @@ export async function getPlan(planId: number): Promise<FarmPlan> {
   return data;
 }
 
+// 현재 사용자(로그인 계정 또는 게스트)의 계획 요약 목록 — 캘린더 탭 구성용.
+export async function listPlans(): Promise<{ id: number; cropName: string }[]> {
+  const { data } = await apiClient.get<{ id: number; cropName: string }[]>('/api/v1/plans');
+  return data;
+}
+
 export async function updateSettings(
   planId: number,
   trackProgress: boolean,
