@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import styles from './page.module.css';
 import {
   Anchor,
   Badge,
@@ -90,7 +91,7 @@ function Hero() {
                 영농 캘린더로 챙겨드립니다.
               </Text>
 
-              <Group gap="md" mt="xs">
+              <Group gap="md" mt="xs" className={styles.ctaGroup}>
                 <Button
                   component={Link}
                   href="/planting"
@@ -140,16 +141,16 @@ function TrustItem({ icon, text }: { icon: ReactNode; text: string }) {
 // 미리보기 카드
 function HeroPreview() {
   return (
-    <Box pos="relative" mih={360}>
+    <Box pos="relative" mih={{ base: 'auto', md: 360 }} maw={420} mx="auto" w="100%">
       <Card
         radius="xl"
         p="lg"
         withBorder
         shadow="xl"
         pos="relative"
+        className={styles.heroCard}
         style={{
           zIndex: 2,
-          transform: 'translate(-40px, -40px)',
           borderColor: 'rgba(34,139,84,0.15)',
           background: 'linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.9))',
           backdropFilter: 'blur(8px)',
@@ -298,7 +299,7 @@ function HeroPreview() {
           transform: 'rotate(-3.5deg)',
           background: 'white',
         }}
-        visibleFrom="sm"
+        visibleFrom="md"
       >
         <Text fz={10} c="green.7" fw={800} tt="uppercase" mb={7} style={{ letterSpacing: 0.6 }}>
           AI 작목 추천
@@ -372,7 +373,7 @@ function HeroPreview() {
       <Box
         pos="absolute"
         style={{ bottom: -20, right: -18, zIndex: 3, width: 255, transform: 'rotate(4deg)' }}
-        visibleFrom="sm"
+        visibleFrom="md"
       >
         <MiniCalendar />
       </Box>
@@ -846,7 +847,7 @@ function FinalCTA() {
             <br />
             1년 영농 계획을 만들어 드립니다.
           </Text>
-          <Group gap="sm" mt="sm">
+          <Group gap="sm" mt="sm" className={styles.ctaGroup}>
             <Button
               component={Link}
               href="/planting"

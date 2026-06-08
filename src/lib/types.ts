@@ -348,6 +348,7 @@ export interface RewardsSummary {
 export interface JournalVerdict {
   crop_match: boolean;
   growth_consistent: boolean;
+  care_consistent: boolean;
   has_harvest: boolean;
   fake_suspect: boolean;
   quantity: string;
