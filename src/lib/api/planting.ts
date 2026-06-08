@@ -92,7 +92,7 @@ export interface CropSummary {
   needs_review: boolean;
 }
 
-/** 입력 위저드 결과로 추천 TOP N + AI 설명을 받아온다. */
+/** 입력 위저드 결과로 추천 TOP N 을 즉시 받아온다(AI 설명 제외, 빠름). */
 export async function fetchPlantingRecommend(
   input: PlantingInput,
 ): Promise<PlantingRecommendResponse> {
@@ -102,6 +102,24 @@ export async function fetchPlantingRecommend(
     { ...input, area_m2: areaToM2(input.area, input.areaUnit) },
   );
   return data;
+}
+
+/** crop_id → AI 설명. */
+export type PlantingExplains = Record<string, AiExplain>;
+
+interface PlantingExplainResponse {
+  explains: PlantingExplains;
+}
+
+/** 추천 렌더 후 호출하는 비동기 AI 설명. 동일 입력이면 같은 작물 집합에 매핑된다. */
+export async function fetchPlantingExplains(
+  input: PlantingInput,
+): Promise<PlantingExplains> {
+  const { data } = await apiClient.post<PlantingExplainResponse>(
+    '/api/v1/planting/recommend/explain',
+    { ...input, area_m2: areaToM2(input.area, input.areaUnit) },
+  );
+  return data.explains ?? {};
 }
 
 /** 40종 작물 메타 목록. */

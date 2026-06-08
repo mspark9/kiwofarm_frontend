@@ -43,6 +43,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { Calendar, DatePickerInput } from '@mantine/dates';
+import { useDebouncedValue } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
   IconAlertCircle,
@@ -733,12 +734,16 @@ function CropPicker({
   onChange: (c: CropCatalogItem | null) => void;
 }) {
   const [q, setQ] = useState('');
+  // 매 키 입력마다 요청하지 않도록 디바운스. 검색은 안정된 입력값(dq)으로만 나간다.
+  const [dq] = useDebouncedValue(q.trim(), 250);
   const searchQ = useQuery({
-    queryKey: ['crop-catalog', 'search', q],
-    queryFn: () => searchCropCatalog(q),
-    enabled: !value && q.trim().length >= 1,
+    queryKey: ['crop-catalog', 'search', dq],
+    queryFn: () => searchCropCatalog(dq),
+    enabled: !value && dq.length >= 1,
     staleTime: 60_000,
   });
+  // 입력은 했지만 디바운스가 아직 반영 전이면(타이핑 중) 스켈레톤을 보여 깜빡임을 막는다.
+  const pending = q.trim().length >= 1 && (q.trim() !== dq || searchQ.isFetching);
 
   if (value) {
     return (
@@ -785,7 +790,7 @@ function CropPicker({
       />
       {q.trim().length >= 1 && (
         <Card radius="md" p="xs" withBorder mt={6} bg="white">
-          {searchQ.isLoading ? (
+          {pending ? (
             <Stack gap={6}>
               {Array.from({ length: 3 }).map((_, i) => (
                 <Skeleton key={i} h={32} radius="sm" />

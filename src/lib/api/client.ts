@@ -4,7 +4,9 @@ import { API_BASE_URL } from '@/lib/constants';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10_000,
+  // 작목 추천은 LLM 설명 생성(최대 ~12s)을 포함해 응답이 길 수 있어 20s 로 둔다.
+  // 백엔드 OpenAI 클라이언트는 max_retries=0 으로 단일 시도라 12s 안에 끝난다.
+  timeout: 20_000,
   headers: { 'Content-Type': 'application/json' },
 });
 

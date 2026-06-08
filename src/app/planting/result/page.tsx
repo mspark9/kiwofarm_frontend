@@ -30,8 +30,8 @@ import {
   IconMessageCircle,
   IconSparkles,
 } from '@tabler/icons-react';
-import type { PlantingInput, RecommendationItem } from '@/lib/api/planting';
-import { fetchPlantingRecommend } from '@/lib/api/planting';
+import type { AiExplain, PlantingInput, RecommendationItem } from '@/lib/api/planting';
+import { fetchPlantingExplains, fetchPlantingRecommend } from '@/lib/api/planting';
 import type { CarryCrop } from '@/lib/planting/storage';
 import {
   loadPlantingInput,
@@ -61,6 +61,16 @@ export default function PlantingResultPage() {
     queryFn: () => fetchPlantingRecommend(input as PlantingInput),
     enabled: !!input,
   });
+
+  // AI 설명은 추천 렌더를 막지 않도록 별도 쿼리로 비동기 로드. 추천이 도착한 뒤
+  // 활성화되며, 실패해도(설명 없음) 추천 표시에는 영향 없다.
+  const explainQuery = useQuery({
+    queryKey: ['planting-explains', input],
+    queryFn: () => fetchPlantingExplains(input as PlantingInput),
+    enabled: !!input && !!query.data,
+    retry: 1,
+  });
+  const explains = explainQuery.data;
 
   // 추천 결과를 보관 → 챗봇 경로 A 컨텍스트 캐리.
   useEffect(() => {
@@ -120,7 +130,7 @@ export default function PlantingResultPage() {
             <Group justify="center" py="xl">
               <Loader color="green" />
               <Text c="dimmed" size="sm">
-                매트릭스로 적기 작물을 고르고 AI 설명을 만드는 중…
+                매트릭스로 적기 작물을 고르는 중…
               </Text>
             </Group>
           )}
@@ -148,6 +158,8 @@ export default function PlantingResultPage() {
                     key={it.crop_id}
                     item={it}
                     rank={idx + 1}
+                    explain={explains?.[it.crop_id] ?? it.ai_explain ?? null}
+                    explainLoading={explainQuery.isFetching && !explains}
                     checked={selected.has(it.crop_id)}
                     onToggle={() => toggle(it.crop_id)}
                   />
@@ -195,11 +207,15 @@ export default function PlantingResultPage() {
 function CropCard({
   item,
   rank,
+  explain,
+  explainLoading,
   checked,
   onToggle,
 }: {
   item: RecommendationItem;
   rank: number;
+  explain: AiExplain | null;
+  explainLoading: boolean;
   checked: boolean;
   onToggle: () => void;
 }) {
@@ -269,27 +285,32 @@ function CropCard({
           </Group>
         )}
 
-        {item.ai_explain && (
+        {explain ? (
           <Card radius="md" p="sm" bg="green.0" withBorder style={{ borderColor: 'var(--mantine-color-green-2)' }}>
             <Stack gap={6}>
               <Text size="sm" lh={1.6}>
-                {item.ai_explain.reason}
+                {explain.reason}
               </Text>
-              {item.ai_explain.tips.length > 0 && (
+              {explain.tips.length > 0 && (
                 <List size="xs" spacing={2} icon={<IconChecks size={12} color="var(--mantine-color-green-7)" />}>
-                  {item.ai_explain.tips.map((t) => (
+                  {explain.tips.map((t) => (
                     <List.Item key={t}>{t}</List.Item>
                   ))}
                 </List>
               )}
-              {item.ai_explain.first_month_todo.length > 0 && (
+              {explain.first_month_todo.length > 0 && (
                 <Text size="xs" c="green.9">
-                  첫 달 할 일: {item.ai_explain.first_month_todo.join(' · ')}
+                  첫 달 할 일: {explain.first_month_todo.join(' · ')}
                 </Text>
               )}
             </Stack>
           </Card>
-        )}
+        ) : explainLoading ? (
+          <Group gap={6} c="dimmed">
+            <Loader size="xs" color="green" />
+            <Text size="xs">AI 맞춤 설명 생성 중…</Text>
+          </Group>
+        ) : null}
 
         <Checkbox
           checked={checked}
