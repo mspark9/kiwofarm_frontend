@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
-  Anchor,
+  Alert,
   Box,
   Button,
   Container,
@@ -11,12 +11,15 @@ import {
   Menu,
   Modal,
   PasswordInput,
+  SegmentedControl,
   Stack,
   Text,
   TextInput,
   ThemeIcon,
   UnstyledButton,
 } from '@mantine/core';
+import { isAxiosError } from 'axios';
+import { clearAuth, getUsername, login, signup } from '@/lib/auth';
 import {
   IconBook2,
   IconCalendarEvent,
@@ -42,6 +45,7 @@ export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
   const [loginOpen, setLoginOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [username, setUsername] = useState<string | null>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -49,6 +53,14 @@ export function SiteHeader() {
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
+
+  useEffect(() => setUsername(getUsername()), []);
+
+  const logout = () => {
+    clearAuth();
+    // 게스트(공용 데모) 데이터로 전환 — 캐시·화면 상태 초기화를 위해 새로고침
+    window.location.href = '/';
+  };
 
   return (
     <>
@@ -130,16 +142,32 @@ export function SiteHeader() {
                   </Menu.Item>
                 ))}
                 <Menu.Divider />
-                <Menu.Item
-                  onClick={() => setLoginOpen(true)}
-                  leftSection={
-                    <ThemeIcon size={22} radius="md" variant="light" color="gray">
-                      <IconLogin2 size={16} />
-                    </ThemeIcon>
-                  }
-                >
-                  로그인
-                </Menu.Item>
+                {username ? (
+                  <>
+                    <Menu.Label>{username} 님</Menu.Label>
+                    <Menu.Item
+                      onClick={logout}
+                      leftSection={
+                        <ThemeIcon size={22} radius="md" variant="light" color="gray">
+                          <IconLogin2 size={16} />
+                        </ThemeIcon>
+                      }
+                    >
+                      로그아웃
+                    </Menu.Item>
+                  </>
+                ) : (
+                  <Menu.Item
+                    onClick={() => setLoginOpen(true)}
+                    leftSection={
+                      <ThemeIcon size={22} radius="md" variant="light" color="gray">
+                        <IconLogin2 size={16} />
+                      </ThemeIcon>
+                    }
+                  >
+                    로그인
+                  </Menu.Item>
+                )}
               </Menu.Dropdown>
             </Menu>
           </Group>
@@ -248,7 +276,33 @@ export function SiteHeader() {
   );
 }
 
+// 아이디+비밀번호 로그인/회원가입 (베타: 제약 최소화). 비로그인은 게스트(공용 체험 데이터).
 function LoginModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+  const [mode, setMode] = useState<'login' | 'signup'>('login');
+  const [userId, setUserId] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      if (mode === 'signup') await signup(userId.trim(), password);
+      else await login(userId.trim(), password);
+      // 계정 데이터로 전환 — 게스트(공용 데모) 화면 상태를 비우기 위해 새로고침
+      window.location.href = '/calendar';
+    } catch (e) {
+      const detail =
+        isAxiosError(e) && typeof e.response?.data?.detail === 'string'
+          ? e.response.data.detail
+          : '요청에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+      setError(detail);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Modal
       opened={opened}
@@ -266,32 +320,60 @@ function LoginModal({ opened, onClose }: { opened: boolean; onClose: () => void 
             <IconUserCircle size={26} />
           </ThemeIcon>
           <Text fw={800} fz={22}>
-            로그인
+            {mode === 'login' ? '로그인' : '회원가입'}
           </Text>
           <Text size="sm" c="dimmed" ta="center">
-            추천 결과·시뮬레이션을 다음에도 이어볼 수 있어요.
+            내 농사 계획·일지·도감을 계정에 보관하고 어디서든 이어보세요.
           </Text>
         </Stack>
 
+        <SegmentedControl
+          fullWidth
+          value={mode}
+          onChange={(v) => {
+            setMode(v as 'login' | 'signup');
+            setError(null);
+          }}
+          data={[
+            { value: 'login', label: '로그인' },
+            { value: 'signup', label: '회원가입' },
+          ]}
+        />
         <Stack gap="sm">
-          <TextInput label="이메일" placeholder="you@kiwofarm.com" autoFocus />
-          <PasswordInput label="비밀번호" placeholder="••••••••" />
+          <TextInput
+            label="아이디"
+            placeholder="아이디"
+            autoFocus
+            value={userId}
+            onChange={(e) => setUserId(e.currentTarget.value)}
+          />
+          <PasswordInput
+            label="비밀번호"
+            placeholder="비밀번호"
+            value={password}
+            onChange={(e) => setPassword(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void submit();
+            }}
+          />
         </Stack>
-
-        <Stack gap="xs">
-          <Button color="green" size="md" onClick={onClose}>
-            로그인
-          </Button>
-          <Button variant="default" size="md" onClick={onClose}>
-            카카오로 시작하기
-          </Button>
-        </Stack>
+        {error && (
+          <Alert color="red" radius="md" variant="light">
+            {error}
+          </Alert>
+        )}
+        <Button
+          color="green"
+          size="md"
+          loading={loading}
+          disabled={!userId.trim() || !password}
+          onClick={() => void submit()}
+        >
+          {mode === 'login' ? '로그인' : '가입하기'}
+        </Button>
 
         <Text size="xs" c="dimmed" ta="center">
-          아직 계정이 없으신가요?{' '}
-          <Anchor size="xs" component="button" type="button" onClick={onClose}>
-            가입하기
-          </Anchor>
+          로그인하지 않아도 게스트 모드로 모든 기능을 체험할 수 있습니다.
         </Text>
       </Stack>
     </Modal>
