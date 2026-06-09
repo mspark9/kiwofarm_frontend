@@ -15,7 +15,18 @@ export async function searchCrops(q: string, limit = 10): Promise<CropOption[]> 
   return data;
 }
 
-// 작목별농업기술정보(cropEbook) 작목 카탈로그 검색 — 캘린더 작물 선택용.
+// 40종 마스터(crops_master) 작물 검색 — 캘린더 작물 선택용.
+// code 가 슬러그라 계획 생성·수확 인증이 도감 40종과 그대로 일치한다. 로컬 조회라 즉시 응답.
+export async function searchCropMaster(q: string): Promise<CropCatalogItem[]> {
+  const trimmed = q.trim();
+  if (!trimmed) return [];
+  const { data } = await apiClient.get<CropCatalogItem[]>('/api/v1/crops/master', {
+    params: { q: trimmed },
+  });
+  return data;
+}
+
+// 작목별농업기술정보(cropEbook) 작목 카탈로그 검색 — 농사로 전체(참고용).
 // 백엔드 첫 호출은 카테고리 트리 순회로 ~6초, 이후 1시간 캐시되어 즉시 응답.
 export async function searchCropCatalog(q: string): Promise<CropCatalogItem[]> {
   const trimmed = q.trim();

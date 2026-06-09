@@ -18,6 +18,8 @@ import {
   Container,
   Divider,
   Group,
+  Loader,
+  Modal,
   NumberInput,
   SegmentedControl,
   Select,
@@ -34,8 +36,8 @@ import { notifications } from '@mantine/notifications';
 import {
   IconArrowLeft,
   IconCalendarPlus,
-  IconCheck,
   IconChevronDown,
+  IconHome2,
   IconMapPin,
   IconPlus,
   IconSearch,
@@ -43,7 +45,7 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import dayjs from 'dayjs';
-import { searchCropCatalog } from '@/lib/api/crops';
+import { searchCropMaster } from '@/lib/api/crops';
 import { createPlan, createPlansBatch } from '@/lib/api/farmplan';
 import { usePlanIds } from '@/lib/planStore';
 import {
@@ -87,6 +89,7 @@ const KOR_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 interface CropEntry {
   key: string; // 작목 코드(subCategoryCode)
   crop: CropCatalogItem;
+  name: string; // 텃밭 고유 이름(선택)
   startDate: Date | null;
   province: string | null;
   city: string | null;
@@ -98,6 +101,7 @@ interface CropEntry {
 const cropEntryKey = (c: CropCatalogItem) => c.code;
 
 interface DraftValues {
+  name: string; // 텃밭 고유 이름(선택)
   startDate: Date | null;
   province: string | null;
   city: string | null;
@@ -120,13 +124,16 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
   const router = useRouter();
   const params = useSearchParams();
   const { add } = usePlanIds();
+  // 추천 흐름(?from=planting)으로 들어왔는지 — 뒤로가기 목적지를 가른다.
+  const fromPlanting = params.get('from') === 'planting';
 
   const [crop, setCrop] = useState<CropCatalogItem | null>(null);
   const [draft, setDraft] = useState<DraftValues>(() => ({
+    name: '',
     startDate: new Date(),
     province: null,
     city: null,
-    area: 300,
+    area: '', // 면적 선택 — 화분만 쓰면 비워둠
     areaUnit: 'pyeong',
     visitDays: [6], // 기본: 토요일
   }));
@@ -145,10 +152,11 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
 
     // 추천받기 조건으로 폼 기본값 계산.
     const next: DraftValues = {
+      name: '',
       startDate: new Date(),
       province: null,
       city: null,
-      area: 300,
+      area: '',
       areaUnit: 'pyeong',
       visitDays: [6],
     };
@@ -187,6 +195,7 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
           crops.map((c) => ({
             key: c.code,
             crop: c,
+            name: '',
             startDate: next.startDate,
             province: next.province,
             city: next.city,
@@ -207,7 +216,6 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
   const validateValues = (v: DraftValues): string | null => {
     if (!v.startDate) return '시작 날짜를 선택하세요.';
     if (!v.province) return '지역(시·도)을 선택하세요.';
-    if (!(typeof v.area === 'number' && v.area > 0)) return '면적을 입력하세요.';
     return null;
   };
   const validateDraft = (): string | null => validateValues(draft);
@@ -219,6 +227,7 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
   const draftToEntry = (c: CropCatalogItem): CropEntry => ({
     key: cropEntryKey(c),
     crop: c,
+    name: draft.name,
     startDate: draft.startDate,
     province: draft.province,
     city: draft.city,
@@ -317,12 +326,13 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
     }
     const payloads: FarmPlanCreate[] = all.map((e) => ({
       startDate: dayjs(e.startDate).format(FMT),
+      name: e.name.trim() || undefined,
       itemCode: e.crop.code,
       kindCode: '0',
       cropName: e.crop.name,
       region: [e.province, e.city].filter(Boolean).join(' '),
       province: e.province ?? undefined,
-      area: typeof e.area === 'number' ? e.area : 0,
+      area: typeof e.area === 'number' && e.area > 0 ? e.area : undefined,
       areaUnit: e.areaUnit,
       visitDays: e.visitDays.length ? [...e.visitDays].sort((a, b) => a - b) : undefined,
       growConditions: growConditions ?? undefined,
@@ -337,16 +347,19 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
       <Container size="sm">
         <Stack gap="lg">
           <Group justify="space-between" align="center" wrap="nowrap">
-            <UnstyledButton component={Link} href="/planting/result">
+            <UnstyledButton
+              component={Link}
+              href={fromPlanting ? '/planting/result' : '/calendar'}
+            >
               <Group gap={6}>
                 <IconArrowLeft size={14} />
                 <Text size="sm" c="dimmed">
-                  추천 결과로
+                  {fromPlanting ? '추천 결과로' : '캘린더로'}
                 </Text>
               </Group>
             </UnstyledButton>
             <Badge variant="light" color="green" leftSection={<IconSparkles size={12} />}>
-              RAG · 농사로 농업기술정보
+              농사로 농업기술정보 기반
             </Badge>
           </Group>
 
@@ -354,17 +367,16 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
 
           <Box>
             <Text size="xs" c="green.7" fw={800} tt="uppercase" style={{ letterSpacing: 1.2 }}>
-              영농 캘린더
+              텃밭 캘린더
             </Text>
-            <Title order={2} fz={{ base: 26, md: 34 }} fw={800} lh={1.2} mt={4}>
-              시작일·작목·지역·면적을 넣으면{' '}
+            <Title order={2} fz={{ base: 24, md: 30 }} fw={800} lh={1.2} mt={4}>
+              내{' '}
               <Text span inherit c="green.7">
-                날짜별 농사 계획
+                텃밭 계획
               </Text>
-              을 만들어 드립니다
             </Title>
             <Text c="dimmed" size="sm" mt={6}>
-              농사로 농업기술길잡이와 병해충 예방 정보를 RAG로 분석해 캘린더에 일정을 자동으로 채웁니다.
+              작물·지역·면적을 입력하면 날짜별 일정을 자동으로 채워드려요.
             </Text>
           </Box>
 
@@ -433,14 +445,81 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
                   leftSection={<IconCalendarPlus size={18} />}
                   onClick={onSubmit}
                 >
-                  {totalCount > 1 ? `${totalCount}개 작물 계획 생성` : '농사 계획 생성'}
+                  {totalCount > 1 ? `${totalCount}개 텃밭 계획 만들기` : '텃밭 계획 만들기'}
                 </Button>
               </Stack>
             </Stack>
           </Card>
         </Stack>
       </Container>
+
+      <PlanGeneratingModal opened={createMut.isPending} count={totalCount} />
     </Box>
+  );
+}
+
+// 계획 생성 대기 모달 — 왜 시간이 걸리는지 설명하고, 완료되면(생성 성공/실패로 isPending=false)
+// 자동으로 닫힌다. 사용자가 임의로 닫지 못하게 닫기 수단을 모두 비활성화.
+const GEN_STAGES = [
+  '농사로 농업기술 자료를 분석하고 있어요',
+  '지역·작물·면적에 맞춰 날짜별 일정을 설계하고 있어요',
+  '거의 다 됐어요. 캘린더를 준비하고 있어요',
+];
+
+function PlanGeneratingModal({ opened, count }: { opened: boolean; count: number }) {
+  const [stage, setStage] = useState(0);
+
+  useEffect(() => {
+    if (!opened) {
+      setStage(0);
+      return;
+    }
+    const id = setInterval(
+      () => setStage((s) => Math.min(s + 1, GEN_STAGES.length - 1)),
+      5000,
+    );
+    return () => clearInterval(id);
+  }, [opened]);
+
+  return (
+    <Modal
+      opened={opened}
+      onClose={() => {}}
+      withCloseButton={false}
+      closeOnClickOutside={false}
+      closeOnEscape={false}
+      centered
+      radius="lg"
+      size="sm"
+      overlayProps={{ backgroundOpacity: 0.5, blur: 3 }}
+    >
+      <Stack align="center" gap="md" py="sm">
+        <Loader color="green" size="lg" type="dots" />
+        <Box ta="center">
+          <Text fw={800} fz="lg">
+            {count > 1
+              ? `${count}개 작물의 텃밭 계획을 만들고 있어요`
+              : '텃밭 계획을 만들고 있어요'}
+          </Text>
+          <Text c="dimmed" size="sm" mt={8} lh={1.6}>
+            AI가 농사로 농업기술정보를 분석해 지역·작물·면적에 맞는 날짜별 일정을 직접
+            설계합니다. 보통 15~20초 정도 걸려요.
+          </Text>
+        </Box>
+        <Badge
+          color="green"
+          variant="light"
+          radius="sm"
+          size="lg"
+          leftSection={<IconSparkles size={14} />}
+        >
+          {GEN_STAGES[stage]}
+        </Badge>
+        <Text c="dimmed" size="xs">
+          완료되면 캘린더로 이동합니다. 창을 닫지 말고 잠시만 기다려 주세요.
+        </Text>
+      </Stack>
+    </Modal>
   );
 }
 
@@ -532,6 +611,24 @@ function CropDetailFields({
 }) {
   return (
     <Stack gap="md">
+      <Box>
+        <Group gap={6} mb={4}>
+          <Text size="sm" fw={500}>
+            텃밭 이름
+          </Text>
+          <Badge size="xs" variant="light" color="gray" radius="sm">
+            선택사항
+          </Badge>
+        </Group>
+        <TextInput
+          placeholder="예: 우리집 베란다 텃밭 (비우면 '작물 텃밭')"
+          maxLength={40}
+          value={values.name}
+          onChange={(e) => onChange({ name: e.currentTarget.value })}
+          leftSection={<IconHome2 size={16} />}
+        />
+      </Box>
+
       <DatePickerInput
         label="시작 날짜"
         placeholder="재배 시작일 선택"
@@ -575,14 +672,19 @@ function CropDetailFields({
       </Group>
 
       <Box>
-        <Text size="sm" fw={500} mb={4}>
-          농지 면적 <span style={{ color: 'var(--mantine-color-red-6)' }}>*</span>
-        </Text>
+        <Group gap={6} mb={4}>
+          <Text size="sm" fw={500}>
+            재배 면적
+          </Text>
+          <Badge size="xs" variant="light" color="gray" radius="sm">
+            선택사항
+          </Badge>
+        </Group>
         <Group gap="sm" align="flex-start" wrap="nowrap">
           <NumberInput
             flex={1}
             min={1}
-            placeholder="면적"
+            placeholder="화분만 쓰면 비워두세요"
             hideControls
             value={values.area}
             onChange={(v) => onChange({ area: typeof v === 'number' ? v : '' })}
@@ -591,9 +693,8 @@ function CropDetailFields({
             data={[
               { value: 'pyeong', label: '평' },
               { value: 'sqm', label: 'm²' },
-              { value: 'hectare', label: 'ha' },
             ]}
-            value={values.areaUnit}
+            value={values.areaUnit === 'hectare' ? 'pyeong' : values.areaUnit}
             onChange={(v) => onChange({ areaUnit: v as AreaUnit })}
           />
         </Group>
@@ -606,7 +707,7 @@ function CropDetailFields({
         <Text size="xs" c="dimmed" mb={8}>
           선택하면 단기 작업(파종·시비·방제 등)을 방문 요일에 맞춰 배치합니다. 비우면 매일 가능으로 처리.
         </Text>
-        <Group grow gap="xs">
+        <Group grow gap={6}>
           {WEEKDAYS.map((w) => {
             const checked = values.visitDays.includes(w.v);
             return (
@@ -614,13 +715,9 @@ function CropDetailFields({
                 key={w.v}
                 size="sm"
                 radius="xl"
-                px={6}
+                px={0}
                 variant={checked ? 'filled' : 'default'}
                 color="green"
-                leftSection={checked ? <IconCheck size={12} /> : <IconX size={12} />}
-                styles={{
-                  section: checked ? undefined : { color: 'var(--mantine-color-gray-5)' },
-                }}
                 onClick={() =>
                   onChange({
                     visitDays: checked
@@ -651,8 +748,8 @@ function CropPicker({
   // 매 키 입력마다 요청하지 않도록 디바운스. 검색은 안정된 입력값(dq)으로만 나간다.
   const [dq] = useDebouncedValue(q.trim(), 250);
   const searchQ = useQuery({
-    queryKey: ['crop-catalog', 'search', dq],
-    queryFn: () => searchCropCatalog(dq),
+    queryKey: ['crop-master', 'search', dq],
+    queryFn: () => searchCropMaster(dq),
     enabled: !value && dq.length >= 1,
     staleTime: 60_000,
   });

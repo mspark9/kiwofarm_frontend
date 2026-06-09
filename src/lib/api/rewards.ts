@@ -1,6 +1,7 @@
 import { apiClient } from '@/lib/api/client';
 import type {
   CompareOut,
+  CropJournalOut,
   HarvestCard,
   HarvestJournalResponse,
   RewardsSummary,
@@ -20,6 +21,14 @@ export async function fetchCompare(cropSlug?: string): Promise<CompareOut> {
 
 export async function fetchHarvestCard(cropSlug: string): Promise<HarvestCard> {
   const { data } = await apiClient.get<HarvestCard>(`/api/v1/harvest/card/${cropSlug}`);
+  return data;
+}
+
+// 도감 카드 '내 기록' 탭 — 이 작물을 키우며 남긴 메모·사진(최신순).
+export async function fetchCropJournal(cropSlug: string): Promise<CropJournalOut> {
+  const { data } = await apiClient.get<CropJournalOut>(
+    `/api/v1/harvest/crop-journal/${cropSlug}`,
+  );
   return data;
 }
 

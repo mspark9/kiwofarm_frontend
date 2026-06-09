@@ -27,7 +27,6 @@ import {
   IconArrowLeft,
   IconCalendarPlus,
   IconChecks,
-  IconMessageCircle,
   IconSparkles,
 } from '@tabler/icons-react';
 import type { AiExplain, PlantingInput, RecommendationItem } from '@/lib/api/planting';
@@ -44,6 +43,13 @@ const ACTION_COLOR: Record<string, string> = {
   정식: 'teal',
   관리: 'gray',
   수확: 'orange',
+};
+
+// 난이도 1~3 → 사용자용 라벨·색.
+const DIFFICULTY: Record<number, { label: string; color: string }> = {
+  1: { label: '쉬움', color: 'green' },
+  2: { label: '보통', color: 'yellow' },
+  3: { label: '어려움', color: 'orange' },
 };
 
 export default function PlantingResultPage() {
@@ -85,6 +91,17 @@ export default function PlantingResultPage() {
       return next;
     });
 
+  // 점수 내림차순 + 동점 시 보조 기준(쉬운 난이도 → 빠른 수확 → 이름)으로 안정 정렬.
+  const ranked = query.data
+    ? [...query.data.recommendations].sort(
+        (a, b) =>
+          b.score - a.score ||
+          a.difficulty - b.difficulty ||
+          (a.days_to_harvest[0] ?? 0) - (b.days_to_harvest[0] ?? 0) ||
+          a.name.localeCompare(b.name, 'ko'),
+      )
+    : [];
+
   // 선택한 작물들을 세션에 담아 캘린더로 이동(추천받기 조건도 함께 캐리).
   const goCalendar = () => {
     const crops: CarryCrop[] = (query.data?.recommendations ?? [])
@@ -98,7 +115,7 @@ export default function PlantingResultPage() {
   return (
     <Box bg="gray.0" mih="100vh" py={{ base: 24, md: 48 }}>
       <Container size="sm">
-        <Stack gap="lg">
+        <Stack gap="lg" pb={query.data ? 96 : undefined}>
           <Group justify="space-between" align="center">
             <Button
               component={Link}
@@ -152,31 +169,8 @@ export default function PlantingResultPage() {
                 </Text>
               </Box>
 
-              <Button
-                color="green"
-                size="md"
-                leftSection={<IconCalendarPlus size={18} />}
-                disabled={selected.size === 0}
-                onClick={goCalendar}
-              >
-                {selected.size > 0
-                  ? `선택한 ${selected.size}개로 캘린더 만들기`
-                  : '작물을 선택하면 캘린더를 만들 수 있어요'}
-              </Button>
-
-              <Button
-                component={Link}
-                href="/planting/chat"
-                color="green"
-                variant="light"
-                size="md"
-                leftSection={<IconMessageCircle size={16} />}
-              >
-                이 결과로 챗봇 상담하기
-              </Button>
-
               <Stack gap="md">
-                {query.data.recommendations.map((it, idx) => (
+                {ranked.map((it, idx) => (
                   <CropCard
                     key={it.crop_id}
                     item={it}
@@ -200,6 +194,39 @@ export default function PlantingResultPage() {
           )}
         </Stack>
       </Container>
+
+      {/* 하단 고정 — 스크롤해도 항상 보이는 캘린더 생성 버튼 */}
+      {query.data && (
+        <Box
+          py="sm"
+          style={{
+            position: 'fixed',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 100,
+            background: 'rgba(255,255,255,0.92)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            borderTop: '1px solid var(--mantine-color-gray-2)',
+          }}
+        >
+          <Container size="sm">
+            <Button
+              fullWidth
+              color="green"
+              size="md"
+              leftSection={<IconCalendarPlus size={18} />}
+              disabled={selected.size === 0}
+              onClick={goCalendar}
+            >
+              {selected.size > 0
+                ? `선택한 ${selected.size}개로 캘린더 만들기`
+                : '작물을 선택하면 캘린더를 만들 수 있어요'}
+            </Button>
+          </Container>
+        </Box>
+      )}
     </Box>
   );
 }
@@ -221,13 +248,24 @@ function CropCard({
 }) {
   const actions = Array.from(new Set(item.calendar_this_month.map((a) => a.action)));
   const [dMin, dMax] = item.days_to_harvest;
+  const diff = DIFFICULTY[item.difficulty] ?? DIFFICULTY[2];
+  // 출처 끝의 영문 서비스명 괄호 제거: "농사로 농작업일정(farmWorkingPlanNew)" → "농사로 농작업일정"
+  const sourceLabel = item.source.replace(/\s*\([^)]*\)\s*$/, '');
+  // 점수(0~100 합산)를 적합도 %로. 점수대별 색으로 높낮이를 한눈에.
+  const pct = Math.max(0, Math.min(100, Math.round(item.score)));
+  const scoreColor = pct >= 80 ? 'green' : pct >= 60 ? 'teal' : 'gray';
   return (
     <Card
       radius="lg"
       p="lg"
       withBorder
       bg={checked ? 'green.0' : 'white'}
-      style={{ borderColor: checked ? 'var(--mantine-color-green-5)' : undefined }}
+      onClick={onToggle}
+      style={{
+        cursor: 'pointer',
+        borderColor: checked ? 'var(--mantine-color-green-5)' : undefined,
+        transition: 'background-color 120ms ease, border-color 120ms ease',
+      }}
     >
       <Stack gap="sm">
         <Group justify="space-between" align="flex-start">
@@ -243,18 +281,18 @@ function CropCard({
                 <Badge size="sm" variant="light" color="green">
                   {item.category}
                 </Badge>
-                <Badge size="sm" variant="light" color="gray">
-                  난이도 {item.difficulty}/3
+                <Badge size="sm" variant="light" color={diff.color}>
+                  {diff.label}
                 </Badge>
               </Group>
               <Text size="xs" c="dimmed" mt={2}>
-                수확까지 {dMin}~{dMax}일 · {item.source}
-                {item.needs_review ? ' · AI보강(검수전)' : ''}
+                수확까지 {dMin}~{dMax}일 · {sourceLabel}
+                {item.needs_review ? ' · AI 보강 정보' : ''}
               </Text>
             </Box>
           </Group>
-          <Badge size="lg" color="green" variant="filled">
-            {item.score}점
+          <Badge size="lg" color={scoreColor} variant="filled">
+            적합도 {pct}%
           </Badge>
         </Group>
 
@@ -312,13 +350,17 @@ function CropCard({
           </Group>
         ) : null}
 
-        <Checkbox
-          checked={checked}
-          onChange={onToggle}
-          color="green"
-          label="캘린더에 추가"
-          styles={{ label: { fontWeight: 600, cursor: 'pointer' }, input: { cursor: 'pointer' } }}
-        />
+        {/* 체크박스 자체는 onChange 로 토글하고, 라벨↔input 합성 클릭이 카드로 버블링돼
+            이중 토글되지 않도록 stopPropagation 박스로 감싼다(카드 본문 클릭과 분리). */}
+        <Box w="fit-content" onClick={(e) => e.stopPropagation()}>
+          <Checkbox
+            checked={checked}
+            onChange={onToggle}
+            color="green"
+            label="캘린더에 추가"
+            styles={{ label: { fontWeight: 600, cursor: 'pointer' }, input: { cursor: 'pointer' } }}
+          />
+        </Box>
       </Stack>
     </Card>
   );

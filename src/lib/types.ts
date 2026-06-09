@@ -161,7 +161,7 @@ export interface CropSummary {
   mode?: 'pdf' | 'general';
 }
 
-// ───────────── 영농 캘린더 (RAG 농사계획 + 메모 + 일정 재조정) ─────────────
+// ───────────── 텃밭 캘린더 (RAG 농사계획 + 메모 + 일정 재조정) ─────────────
 
 export type TaskCategory =
   | 'seeding'
@@ -185,12 +185,13 @@ export interface GrowConditions {
 
 export interface FarmPlanCreate {
   startDate: string; // YYYY-MM-DD
+  name?: string | null; // 텃밭 고유 이름(선택)
   itemCode: string;
   kindCode: string;
   cropName: string;
   region: string;
   province?: string;
-  area: number;
+  area?: number | null; // 텃밭은 면적 선택 — 미입력이면 생략(소규모로 처리)
   areaUnit: AreaUnit;
   visitFrequency?: string; // weekly_1 | weekly_2 | weekly_3 | daily
   visitDays?: number[]; // 0=일 ~ 6=토
@@ -230,6 +231,7 @@ export interface TaskMemo {
 export interface FarmPlan {
   id: number;
   startDate: string;
+  name?: string | null; // 텃밭 고유 이름. 없으면 "{작물} 텃밭"으로 표시.
   cropItemCode: string;
   cropKindCode: string;
   cropName: string;
@@ -254,6 +256,8 @@ export interface FarmPlanWithPoints extends FarmPlan {
 
 export interface HarvestRecipe {
   name: string;
+  materials?: string; // 재료
+  cooking?: string; // 조리 단계
   nutrients: Record<string, string>;
 }
 
@@ -266,6 +270,8 @@ export interface HarvestCard {
   cropSlug: string;
   cropName: string;
   category: string;
+  difficulty?: number | null;
+  daysToHarvest?: number[] | null; // [최소, 최대] 일
   source: 'nongsaro:monthFd' | 'ai';
   storage: string;
   eating: string;
@@ -273,6 +279,80 @@ export interface HarvestCard {
   seasonMonths: number[];
   recipes: HarvestRecipe[];
   links: HarvestCardLink[];
+}
+
+// ───────────── 커뮤니티 게시판 (자랑·나눔) ─────────────
+
+export type PostType = 'show' | 'share'; // 자랑 | 나눔
+export type ShareStatus = 'open' | 'closed';
+export type ShareRequestStatus = 'pending' | 'accepted' | 'declined';
+
+export interface CommunityComment {
+  id: number;
+  authorName: string;
+  content: string;
+  createdAt: string;
+  isMine: boolean;
+}
+
+export interface ShareRequest {
+  id: number;
+  requesterName: string;
+  message: string;
+  status: ShareRequestStatus;
+  createdAt: string;
+  isMine: boolean;
+}
+
+// 피드 카드 (목록). images 는 메모 사진과 동일 형태라 MemoImage 재사용.
+export interface CommunityPostListItem {
+  id: number;
+  postType: PostType;
+  authorName: string;
+  cropSlug?: string | null;
+  cropName?: string | null;
+  title?: string | null;
+  contentPreview: string;
+  images: MemoImage[];
+  likeCount: number;
+  commentCount: number;
+  shareRequestCount: number;
+  likedByMe: boolean;
+  isMine: boolean;
+  shareStatus: ShareStatus;
+  createdAt: string;
+}
+
+export interface CommunityPostDetail {
+  id: number;
+  postType: PostType;
+  authorName: string;
+  cropSlug?: string | null;
+  cropName?: string | null;
+  title?: string | null;
+  content: string;
+  images: MemoImage[];
+  likeCount: number;
+  likedByMe: boolean;
+  isMine: boolean;
+  shareStatus: ShareStatus;
+  comments: CommunityComment[];
+  shareRequests: ShareRequest[];
+  createdAt: string;
+}
+
+export interface LikeToggle {
+  liked: boolean;
+  likeCount: number;
+}
+
+// 도감 카드 '내 기록' 탭 — 이 작물을 키우며 남긴 메모·사진(최신순).
+export interface CropJournalOut {
+  cropSlug: string;
+  cropName: string;
+  totalMemos: number;
+  totalPhotos: number;
+  memos: TaskMemo[];
 }
 
 export interface CollectionEntry {

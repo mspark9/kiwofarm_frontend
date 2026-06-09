@@ -8,7 +8,6 @@ import {
   Box,
   Button,
   Card,
-  Collapse,
   Container,
   Group,
   MultiSelect,
@@ -26,13 +25,11 @@ import { useMediaQuery } from '@mantine/hooks';
 import { DatePickerInput } from '@mantine/dates';
 import dayjs from 'dayjs';
 import {
-  IconAdjustments,
   IconArrowLeft,
   IconArrowRight,
   IconBuildingStore,
   IconCalendarTime,
   IconCheck,
-  IconChevronDown,
   IconClock,
   IconCompass,
   IconLeaf,
@@ -71,6 +68,9 @@ const WEEKDAYS: { v: number; l: string }[] = [
 ];
 const KOR_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
+// 매일(월~일). 방문 요일 기본값.
+const ALL_DAYS = [1, 2, 3, 4, 5, 6, 0];
+
 // 저장된 sigungu("경기도 성남시") → province / city 분해.
 function splitSigungu(sigungu: string): { province: string; city: string } {
   const i = sigungu.indexOf(' ');
@@ -89,7 +89,6 @@ export default function PlantingWizardPage() {
   const [province, setProvince] = useState(initRegion.province);
   const [city, setCity] = useState(initRegion.city);
   const [regionError, setRegionError] = useState<string | undefined>();
-  const [advanced, setAdvanced] = useState(false);
 
   const form = useForm<FormValues>({
     initialValues: {
@@ -99,8 +98,8 @@ export default function PlantingWizardPage() {
       direction: saved?.direction ?? null,
       area: saved?.area ?? null,
       areaUnit: saved?.areaUnit ?? 'pyeong',
-      visitDays: saved?.visitDays ?? null,
-      startDate: saved?.startDate ?? null,
+      visitDays: saved?.visitDays ?? ALL_DAYS,
+      startDate: saved?.startDate ?? dayjs().format('YYYY-MM-DD'),
       facility: saved?.facility ?? [],
       prefs: saved?.prefs ?? [],
       top_n: saved?.top_n ?? 6,
@@ -150,7 +149,7 @@ export default function PlantingWizardPage() {
             </Text>
           </Box>
 
-          {/* 필수 */}
+          {/* 입력 항목 (선택 항목 포함) */}
           <Card radius="lg" p="lg" withBorder bg="white">
             <Stack gap="lg">
               <FieldRow icon={<IconMapPin size={16} />} label="지역 (시·군·구)">
@@ -217,108 +216,81 @@ export default function PlantingWizardPage() {
               <FieldRow icon={<IconLeaf size={16} />} label="경험">
                 <SegmentedControl fullWidth data={EXP_OPTIONS} {...form.getInputProps('experience')} />
               </FieldRow>
-            </Stack>
-          </Card>
 
-          {/* 접이식 고급 옵션 */}
-          <Card radius="lg" p="lg" withBorder bg="white">
-            <UnstyledButton onClick={() => setAdvanced((v) => !v)} w="100%">
-              <Group justify="space-between">
-                <Group gap={8}>
-                  <ThemeIcon size={22} radius="xl" variant="light" color="green">
-                    <IconAdjustments size={13} />
-                  </ThemeIcon>
-                  <Text size="sm" fw={700}>
-                    더 정확하게 (선택)
-                  </Text>
+              <FieldRow icon={<IconCalendarTime size={16} />} label="방문 예정 요일">
+                <Text size="xs" c="dimmed" mb={8}>
+                  기본값은 매일이에요. 방문하지 않는 요일은 눌러서 빼주세요.
+                </Text>
+                <Group grow gap="xs">
+                  {WEEKDAYS.map((w) => {
+                    const days = form.values.visitDays ?? [];
+                    const checked = days.includes(w.v);
+                    return (
+                      <Button
+                        key={w.v}
+                        size={isMobile ? 'xs' : 'sm'}
+                        radius="xl"
+                        px={isMobile ? 4 : 6}
+                        fz={isMobile ? 11 : undefined}
+                        variant={checked ? 'filled' : 'default'}
+                        color="green"
+                        leftSection={
+                          isMobile
+                            ? undefined
+                            : checked ? <IconCheck size={12} /> : <IconX size={12} />
+                        }
+                        styles={{
+                          section: checked ? undefined : { color: 'var(--mantine-color-gray-5)' },
+                        }}
+                        onClick={() =>
+                          form.setFieldValue(
+                            'visitDays',
+                            checked ? days.filter((d) => d !== w.v) : [...days, w.v],
+                          )
+                        }
+                      >
+                        {w.l}
+                      </Button>
+                    );
+                  })}
                 </Group>
-                <IconChevronDown
-                  size={16}
-                  style={{
-                    transform: advanced ? 'rotate(180deg)' : 'none',
-                    transition: 'transform 160ms ease',
-                  }}
+              </FieldRow>
+
+              <FieldRow icon={<IconClock size={16} />} label="시작 시점">
+                <DatePickerInput
+                  placeholder="재배 시작일 선택 (비우면 오늘 기준)"
+                  valueFormat="YYYY년 M월 D일"
+                  firstDayOfWeek={1}
+                  monthLabelFormat="YYYY년 M월"
+                  yearLabelFormat="YYYY년"
+                  monthsListFormat="M월"
+                  clearable
+                  weekdayFormat={(date) => KOR_WEEKDAYS[date.getDay()]}
+                  value={form.values.startDate ? dayjs(form.values.startDate).toDate() : null}
+                  onChange={(v) =>
+                    form.setFieldValue('startDate', v ? dayjs(v).format('YYYY-MM-DD') : null)
+                  }
                 />
-              </Group>
-            </UnstyledButton>
+              </FieldRow>
 
-            <Collapse in={advanced}>
-              <Stack gap="lg" mt="lg">
-                <FieldRow icon={<IconCalendarTime size={16} />} label="방문 예정 요일">
-                  <Text size="xs" c="dimmed" mb={8}>
-                    작물 관리 예정 요일을 선택하세요. 
-                  </Text>
-                  <Group grow gap="xs">
-                    {WEEKDAYS.map((w) => {
-                      const days = form.values.visitDays ?? [];
-                      const checked = days.includes(w.v);
-                      return (
-                        <Button
-                          key={w.v}
-                          size={isMobile ? 'xs' : 'sm'}
-                          radius="xl"
-                          px={isMobile ? 4 : 6}
-                          fz={isMobile ? 11 : undefined}
-                          variant={checked ? 'filled' : 'default'}
-                          color="green"
-                          leftSection={
-                            isMobile
-                              ? undefined
-                              : checked ? <IconCheck size={12} /> : <IconX size={12} />
-                          }
-                          styles={{
-                            section: checked ? undefined : { color: 'var(--mantine-color-gray-5)' },
-                          }}
-                          onClick={() =>
-                            form.setFieldValue(
-                              'visitDays',
-                              checked ? days.filter((d) => d !== w.v) : [...days, w.v],
-                            )
-                          }
-                        >
-                          {w.l}
-                        </Button>
-                      );
-                    })}
-                  </Group>
-                </FieldRow>
+              <FieldRow icon={<IconBuildingStore size={16} />} label="보유 시설" optional>
+                <MultiSelect
+                  data={FACILITY_OPTIONS}
+                  placeholder="화분·플랜터·비닐터널 등"
+                  {...form.getInputProps('facility')}
+                  clearable
+                />
+              </FieldRow>
 
-                <FieldRow icon={<IconClock size={16} />} label="시작 시점">
-                  <DatePickerInput
-                    placeholder="재배 시작일 선택 (비우면 오늘 기준)"
-                    valueFormat="YYYY년 M월 D일"
-                    firstDayOfWeek={1}
-                    monthLabelFormat="YYYY년 M월"
-                    yearLabelFormat="YYYY년"
-                    monthsListFormat="M월"
-                    clearable
-                    weekdayFormat={(date) => KOR_WEEKDAYS[date.getDay()]}
-                    value={form.values.startDate ? dayjs(form.values.startDate).toDate() : null}
-                    onChange={(v) =>
-                      form.setFieldValue('startDate', v ? dayjs(v).format('YYYY-MM-DD') : null)
-                    }
-                  />
-                </FieldRow>
-
-                <FieldRow icon={<IconBuildingStore size={16} />} label="보유 시설">
-                  <MultiSelect
-                    data={FACILITY_OPTIONS}
-                    placeholder="화분·플랜터·비닐터널 등"
-                    {...form.getInputProps('facility')}
-                    clearable
-                  />
-                </FieldRow>
-
-                <FieldRow icon={<IconLeaf size={16} />} label="선호 작물군">
-                  <MultiSelect
-                    data={PREF_OPTIONS}
-                    placeholder="잎채소·열매채소·뿌리채소·허브"
-                    {...form.getInputProps('prefs')}
-                    clearable
-                  />
-                </FieldRow>
-              </Stack>
-            </Collapse>
+              <FieldRow icon={<IconLeaf size={16} />} label="선호 작물군" optional>
+                <MultiSelect
+                  data={PREF_OPTIONS}
+                  placeholder="잎채소·열매채소·뿌리채소·허브"
+                  {...form.getInputProps('prefs')}
+                  clearable
+                />
+              </FieldRow>
+            </Stack>
           </Card>
 
           <Card radius="md" p="sm" withBorder bg="green.0" style={{ borderColor: 'var(--mantine-color-green-2)' }}>
@@ -351,10 +323,12 @@ export default function PlantingWizardPage() {
 function FieldRow({
   icon,
   label,
+  optional,
   children,
 }: {
   icon: React.ReactNode;
   label: string;
+  optional?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -366,6 +340,11 @@ function FieldRow({
         <Text size="sm" fw={600}>
           {label}
         </Text>
+        {optional && (
+          <Badge size="xs" variant="light" color="gray" radius="sm">
+            선택사항
+          </Badge>
+        )}
       </Group>
       {children}
     </Box>
