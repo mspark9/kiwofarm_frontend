@@ -42,6 +42,7 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { Calendar } from '@mantine/dates';
+import { useMediaQuery } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
   IconAlertCircle,
@@ -63,7 +64,6 @@ import {
   IconPlus,
   IconSparkles,
   IconTrash,
-  IconX,
 } from '@tabler/icons-react';
 import { isAxiosError } from 'axios';
 import dayjs from 'dayjs';
@@ -260,7 +260,8 @@ function CalendarGridStyles() {
       .kw-cal .mantine-Calendar-weekday:last-of-type {
         color: var(--mantine-color-red-6);
       }
-      /* 모바일: 날짜 칸을 세로로 더 긴 직사각형 + 요일/헤더 글씨 축소 */
+
+      /* 모바일 */
       @media (max-width: 48em) {
         .kw-cal .mantine-Calendar-day {
           aspect-ratio: 4 / 5;
@@ -298,14 +299,19 @@ interface VisitWindow {
 function buildAllIndex(plans: LoadedPlan[]): Map<string, AllEntry[]> {
   const byDate = new Map<string, AllEntry[]>();
   for (const { id, plan } of plans) {
+    // 여러날 작업은 그 계획의 방문 가능일에만 표시(방문 요일을 정한 경우).
+    const visitDays = new Set(plan.visitDays ?? []);
     for (const t of plan.tasks) {
+      const multi = t.durationDays > 1;
       let d = dayjs(t.date);
       const end = dayjs(t.endDate);
       while (d.isBefore(end) || d.isSame(end, 'day')) {
-        const key = d.format(FMT);
-        const arr = byDate.get(key) ?? [];
-        arr.push({ planId: id, cropName: plan.cropName, task: t });
-        byDate.set(key, arr);
+        if (!multi || visitDays.size === 0 || visitDays.has(d.day())) {
+          const key = d.format(FMT);
+          const arr = byDate.get(key) ?? [];
+          arr.push({ planId: id, cropName: plan.cropName, task: t });
+          byDate.set(key, arr);
+        }
         d = d.add(1, 'day');
       }
     }
@@ -333,6 +339,7 @@ function AllPlansView({
   onDeleted: (id: number) => void;
 }) {
   const qc = useQueryClient();
+  const isMobile = useMediaQuery('(max-width: 48em)');
 
   // 경작중 / 완료 전환.
   const [mode, setMode] = useState<'active' | 'completed'>('active');
@@ -340,17 +347,11 @@ function AllPlansView({
   const completed = useMemo(() => plans.filter((p) => isPlanCompleted(p.plan)), [plans]);
   const basePlans = mode === 'active' ? active : completed;
 
-  // 숨긴 작물 id 집합(비어 있으면 전체 표시).
+  // 작물별 캘린더 표시 여부 = 행 체크 상태. 숨긴 id 집합(비어 있으면 전체 표시).
+  // 표시(체크)된 작물이 곧 "선택 삭제"의 대상이다 — 표시·선택을 하나로 통합.
   const [hidden, setHidden] = useState<Set<number>>(() => new Set());
-  // 삭제용 선택 집합.
-  const [picked, setPicked] = useState<Set<number>>(() => new Set());
-  const togglePick = (id: number) =>
-    setPicked((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  // 삭제(하나씩) 모드 — 켜지면 각 행의 화살표 대신 휴지통이 나온다.
+  const [deleteMode, setDeleteMode] = useState(false);
   // 삭제 확인 팝업.
   const [confirm, setConfirm] = useState<{
     title: string;
@@ -396,7 +397,7 @@ function AllPlansView({
     setMonth(earliest);
     setSelected(earliest);
     setHidden(new Set());
-    setPicked(new Set());
+    setDeleteMode(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
@@ -429,25 +430,16 @@ function AllPlansView({
         qc.removeQueries({ queryKey: ['farmplan', id] });
       }
       qc.invalidateQueries({ queryKey: ['plans', 'list'] });
-      setPicked(new Set());
       notifications.show({ color: 'gray', message: `${ids.length}개 캘린더를 삭제했습니다.` });
     },
     onError: () => notifications.show({ color: 'red', message: '삭제에 실패했습니다.' }),
   });
 
-  const allPicked = basePlans.length > 0 && basePlans.every((p) => picked.has(p.id));
+  const allChecked = basePlans.length > 0 && hidden.size === 0;
+  // 전체 선택 = 전체 표시: 체크 시 모두 표시, 해제 시 모두 숨김.
   const toggleAll = () =>
-    setPicked(allPicked ? new Set() : new Set(basePlans.map((p) => p.id)));
+    setHidden(allChecked ? new Set(basePlans.map((p) => p.id)) : new Set());
 
-  const deleteSelected = () => {
-    const ids = basePlans.filter((p) => picked.has(p.id)).map((p) => p.id);
-    if (ids.length === 0) return;
-    setConfirm({
-      title: '선택한 캘린더 삭제',
-      message: `선택한 ${ids.length}개 캘린더를 삭제할까요?\n작업·메모·사진이 모두 사라지며 되돌릴 수 없습니다.`,
-      action: () => deleteManyMut.mutate(ids),
-    });
-  };
   const deleteAll = () => {
     const ids = basePlans.map((p) => p.id);
     if (ids.length === 0) return;
@@ -512,26 +504,15 @@ function AllPlansView({
                 <Title order={2} fz={{ base: 22, md: 28 }} fw={800}>
                   내 영농 캘린더
                 </Title>
-                <Group gap="xs" wrap="nowrap">
-                  <Button
-                    size="compact-sm"
-                    variant="default"
-                    leftSection={<IconLayoutGrid size={14} />}
-                    component={Link}
-                    href="/calendar"
-                  >
-                    전체보기
-                  </Button>
-                  <Button
-                    size="compact-sm"
-                    color="green"
-                    leftSection={<IconPlus size={14} />}
-                    component={Link}
-                    href="/planting"
-                  >
-                    추가
-                  </Button>
-                </Group>
+                <Button
+                  size="compact-sm"
+                  color="green"
+                  leftSection={<IconPlus size={14} />}
+                  component={Link}
+                  href="/planting"
+                >
+                  추가
+                </Button>
               </Group>
 
               <SegmentedControl
@@ -548,108 +529,133 @@ function AllPlansView({
                   <Group justify="space-between" align="center" gap="xs" wrap="wrap">
                     <Checkbox
                       size="xs"
-                      checked={allPicked}
-                      indeterminate={picked.size > 0 && !allPicked}
+                      color="green"
+                      checked={allChecked}
+                      indeterminate={hidden.size > 0 && hidden.size < basePlans.length}
                       onChange={toggleAll}
                       label="전체 선택"
                       styles={{ label: { fontWeight: 600 } }}
                     />
-                    <Group gap={6} wrap="wrap">
-                      {picked.size > 0 && (
+                    {deleteMode ? (
+                      <Group gap={6} wrap="nowrap">
                         <Button
                           size="compact-xs"
                           color="red"
                           variant="light"
                           leftSection={<IconTrash size={12} />}
                           loading={deleteManyMut.isPending}
-                          onClick={deleteSelected}
+                          onClick={deleteAll}
                         >
-                          선택 삭제 ({picked.size})
+                          전체 삭제 ({basePlans.length})
                         </Button>
-                      )}
+                        <Button
+                          size="compact-xs"
+                          color="gray"
+                          variant="subtle"
+                          onClick={() => setDeleteMode(false)}
+                        >
+                          취소
+                        </Button>
+                      </Group>
+                    ) : (
                       <Button
                         size="compact-xs"
                         color="red"
-                        variant="subtle"
-                        loading={deleteManyMut.isPending}
-                        onClick={deleteAll}
+                        variant="light"
+                        leftSection={<IconTrash size={12} />}
+                        onClick={() => setDeleteMode(true)}
                       >
-                        전체 삭제
+                        삭제
                       </Button>
-                      <Button
-                        size="compact-xs"
-                        variant="subtle"
-                        color="gray"
-                        disabled={hidden.size === 0}
-                        onClick={() => setHidden(new Set())}
-                      >
-                        전체 표시
-                      </Button>
-                    </Group>
+                    )}
                   </Group>
                   {basePlans.map(({ id, plan }) => {
                     const on = !hidden.has(id);
+                    // 종료일 = 가장 늦은 작업 종료일(없으면 시작일). YYYY-MM-DD 문자열 비교로 충분.
+                    let lastKey = plan.startDate;
+                    for (const t of plan.tasks) if (t.endDate > lastKey) lastKey = t.endDate;
+                    const period = `${dayjs(plan.startDate).format('YY.MM.DD')} - ${dayjs(lastKey).format('YY.MM.DD')}`;
+                    // 삭제 모드면 화살표 대신 휴지통(개별 삭제), 아니면 열기 화살표.
+                    const rowAction = deleteMode ? (
+                      <ActionIcon
+                        size="sm"
+                        variant="subtle"
+                        color="red"
+                        style={{ flexShrink: 0 }}
+                        loading={deleteMut.isPending && deleteMut.variables === id}
+                        onClick={() => onDelete(id, plan.cropName)}
+                        aria-label={`${plan.cropName} 캘린더 삭제`}
+                      >
+                        <IconTrash size={16} />
+                      </ActionIcon>
+                    ) : (
+                      <ActionIcon
+                        size="sm"
+                        variant="subtle"
+                        color="green"
+                        style={{ flexShrink: 0 }}
+                        component={Link}
+                        href={`/calendar?planId=${id}`}
+                        aria-label={`${plan.cropName} 캘린더 열기`}
+                      >
+                        <IconChevronRight size={16} />
+                      </ActionIcon>
+                    );
                     return (
                       <Card
                         key={id}
                         radius="md"
                         p="6px 10px"
                         withBorder
-                        bg={picked.has(id) ? 'red.0' : on ? 'white' : 'gray.0'}
-                        style={{
-                          borderColor: picked.has(id)
-                            ? 'var(--mantine-color-red-2)'
-                            : 'var(--mantine-color-gray-2)',
-                        }}
+                        bg={on ? 'white' : 'gray.0'}
+                        style={{ borderColor: 'var(--mantine-color-gray-2)' }}
                       >
                         <Group justify="space-between" wrap="nowrap" gap="sm">
                           <Group gap={8} wrap="nowrap" style={{ flex: 1, minWidth: 0 }}>
                             <Checkbox
                               size="xs"
-                              checked={picked.has(id)}
-                              onChange={() => togglePick(id)}
-                              aria-label={`${plan.cropName} 선택`}
-                            />
-                            <UnstyledButton
-                              onClick={() => toggle(id)}
-                              style={{ flex: 1, minWidth: 0 }}
-                              aria-label={`${plan.cropName} 달력 표시 토글`}
-                            >
-                              <Group gap={8} wrap="nowrap" style={{ minWidth: 0 }}>
-                                <ThemeIcon
-                                  size={20}
-                                  radius="xl"
-                                  variant="light"
-                                  color={on ? 'green' : 'gray'}
-                                >
-                                  {on ? <IconCheck size={12} /> : <IconX size={12} />}
-                                </ThemeIcon>
-                                <Text fw={600} truncate c={on ? undefined : 'dimmed'}>
-                                  {plan.cropName}
-                                </Text>
-                              </Group>
-                            </UnstyledButton>
-                          </Group>
-                          <Group gap={2} wrap="nowrap" style={{ flexShrink: 0 }}>
-                            <Button
-                              size="compact-xs"
-                              variant="subtle"
                               color="green"
-                              component={Link}
-                              href={`/calendar?planId=${id}`}
-                            >
-                              열기
-                            </Button>
-                            <ActionIcon
-                              size="sm"
-                              variant="subtle"
-                              color="red"
-                              loading={deleteMut.isPending && deleteMut.variables === id}
-                              onClick={() => onDelete(id, plan.cropName)}
-                              aria-label={`${plan.cropName} 캘린더 삭제`}
-                            >
-                              <IconTrash size={13} />
-                            </ActionIcon>
+                              checked={on}
+                              onChange={() => toggle(id)}
+                              aria-label={`${plan.cropName} 캘린더 표시`}
+                            />
+                            {isMobile ? (
+                              // 모바일
+                              <Box style={{ flex: 1, minWidth: 0 }}>
+                                <Group gap={4} wrap="nowrap" style={{ minWidth: 0 }}>
+                                  <UnstyledButton
+                                    onClick={() => toggle(id)}
+                                    style={{ minWidth: 0 }}
+                                    aria-label={`${plan.cropName} 달력 표시 토글`}
+                                  >
+                                    <Text fw={600} truncate c={on ? undefined : 'dimmed'}>
+                                      {plan.cropName}
+                                    </Text>
+                                  </UnstyledButton>
+                                  {rowAction}
+                                </Group>
+                                <Text size="xs" c="dimmed" truncate>
+                                  {period}
+                                </Text>
+                              </Box>
+                            ) : (
+                              // 데스크톱: 이름을 늘려 날짜·화살표를 오른쪽으로 정렬(행끼리 열 맞춤).
+                              <>
+                                <UnstyledButton
+                                  onClick={() => toggle(id)}
+                                  style={{ flex: 1, minWidth: 0 }}
+                                  aria-label={`${plan.cropName} 달력 표시 토글`}
+                                >
+                                  <Text fw={600} truncate c={on ? undefined : 'dimmed'}>
+                                    {plan.cropName}
+                                  </Text>
+                                </UnstyledButton>
+                                <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
+                                  {period}
+                                </Text>
+                                {rowAction}
+                              </>
+                            )}
                           </Group>
                         </Group>
                       </Card>
@@ -730,7 +736,13 @@ function AllCalendar({
           yearLabelFormat="YYYY년"
           monthsListFormat="M월"
           style={{ '--day-size': '3rem', width: '100%' } as CSSProperties}
-          getDayProps={(date) => ({ onClick: () => onSelect(date) })}
+          getDayProps={(date) => ({
+            onClick: () => {
+              onSelect(date);
+              // 다른 달(이전·다음 달) 날짜를 고르면 그 달로 이동.
+              if (!month || !dayjs(date).isSame(month, 'month')) onMonthChange(date);
+            },
+          })}
           renderDay={(date) => {
             const key = dayjs(date).format(FMT);
             const entries = index.get(key) ?? [];
@@ -1187,7 +1199,8 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
         </UnstyledButton>
       </Group>
       <Collapse in={infoOpen}>
-        {/* 모바일: 한 줄에 한 칸(세로) · 데스크톱: 가로 한 줄 */}
+
+        {/* 모바일: 한 줄에 한 칸(세로) | 데스크톱: 가로 한 줄 */}
         <Flex direction={{ base: 'column', sm: 'row' }} gap={{ base: 6, sm: 'md' }} mt={6} align="stretch">
           {summarySegments.map((seg, i) => (
             <Fragment key={seg.key}>
@@ -1341,15 +1354,21 @@ function snapPlanTasks(plan: FarmPlan): FarmPlan {
 }
 
 function tasksByDate(plan: FarmPlan): Map<string, FarmTask[]> {
+  // 여러날 작업은 방문 가능일에만 할 일로 노출(방문 요일을 정한 경우).
+  // 단기 작업은 snapPlanTasks 가 이미 방문일로 옮겨 둔다.
+  const visitDays = new Set(plan.visitDays ?? []);
   const map = new Map<string, FarmTask[]>();
   for (const t of plan.tasks) {
+    const multi = t.durationDays > 1;
     let d = dayjs(t.date);
     const end = dayjs(t.endDate);
     while (d.isBefore(end) || d.isSame(end, 'day')) {
-      const key = d.format(FMT);
-      const arr = map.get(key) ?? [];
-      arr.push(t);
-      map.set(key, arr);
+      if (!multi || visitDays.size === 0 || visitDays.has(d.day())) {
+        const key = d.format(FMT);
+        const arr = map.get(key) ?? [];
+        arr.push(t);
+        map.set(key, arr);
+      }
       d = d.add(1, 'day');
     }
   }
@@ -1387,6 +1406,9 @@ function computeBars(plan: FarmPlan): {
     }
     placed.push({ task: t, lane });
   }
+  // 방문 요일을 정하면 여러날 막대도 방문일에만 조각으로 표시(비방문일엔 비움).
+  const visitDays = new Set(plan.visitDays ?? []);
+  const restrict = visitDays.size > 0;
   const laneCount = Math.min(laneEnd.length, MAX_LANES);
   const barsByDate = new Map<string, (BarSeg | undefined)[]>();
   for (const { task, lane } of placed) {
@@ -1394,14 +1416,17 @@ function computeBars(plan: FarmPlan): {
     let d = dayjs(task.date);
     const end = dayjs(task.endDate);
     while (d.isBefore(end) || d.isSame(end, 'day')) {
-      const k = d.format(FMT);
-      const arr = barsByDate.get(k) ?? [];
-      arr[lane] = {
-        color: CATEGORY_META[task.category].color,
-        isStart: k === task.date,
-        isEnd: k === task.endDate,
-      };
-      barsByDate.set(k, arr);
+      if (!restrict || visitDays.has(d.day())) {
+        const k = d.format(FMT);
+        const arr = barsByDate.get(k) ?? [];
+        arr[lane] = {
+          color: CATEGORY_META[task.category].color,
+          // 방문일만 표시할 땐 각 조각을 독립 알약 모양으로(양끝 둥글게).
+          isStart: restrict ? true : k === task.date,
+          isEnd: restrict ? true : k === task.endDate,
+        };
+        barsByDate.set(k, arr);
+      }
       d = d.add(1, 'day');
     }
   }
@@ -1602,7 +1627,11 @@ function PlanCalendar({
         monthsListFormat="M월"
         style={{ '--day-size': '3rem', width: '100%' } as CSSProperties}
         getDayProps={(date) => ({
-          onClick: () => onSelect(date),
+          onClick: () => {
+            onSelect(date);
+            // 다른 달(이전·다음 달) 날짜를 고르면 그 달로 이동.
+            if (!month || !dayjs(date).isSame(month, 'month')) onMonthChange(date);
+          },
         })}
         renderDay={(date) => {
           const key = dayjs(date).format(FMT);
@@ -1845,6 +1874,8 @@ function DayPanel({
 
   const delayable = dayTasks.filter((t) => t.status !== 'done');
   const [bulkDelayDays, setBulkDelayDays] = useState<number | ''>(1);
+  // 일정 지연 칸은 기본 접힘 — 헤더를 눌러야 안내와 입력이 펼쳐진다.
+  const [delayOpen, setDelayOpen] = useState(false);
 
   // 메모 저장 = 완료. 내용이 있으면 그 날짜의 남은 작업을 모두 완료 처리한다.
   const memoMut = useMutation({
@@ -1933,14 +1964,28 @@ function DayPanel({
     staleTime: 30 * 60_000,
   });
   // 그 주(월~일) 작업을 plan 에서 직접 추려 표시(완료 처리 즉시 회색 반영). 코칭만 서버 사용.
+  // 여러날 작업은 기간이 이 주와 겹치되, 이 주 안에 방문 가능일이 있을 때만 할 일로 노출.
+  // (단기 작업은 snapPlanTasks 가 이미 방문일로 옮겨 둠.)
   const weekTasks = useMemo(() => {
     if (!weekStartKey) return [];
     const we = dayjs(weekStartKey).add(6, 'day').format(FMT);
+    const visitDays = new Set(plan.visitDays ?? []);
+    const hasVisitDay = (startK: string, endK: string) => {
+      if (visitDays.size === 0) return true;
+      let d = dayjs(startK > weekStartKey ? startK : weekStartKey);
+      const end = dayjs(endK < we ? endK : we);
+      while (d.isBefore(end) || d.isSame(end, 'day')) {
+        if (visitDays.has(d.day())) return true;
+        d = d.add(1, 'day');
+      }
+      return false;
+    };
     return plan.tasks
-      .filter((t) => t.date >= weekStartKey && t.date <= we)
+      .filter((t) => t.date <= we && t.endDate >= weekStartKey)
+      .filter((t) => t.durationDays <= 1 || hasVisitDay(t.date, t.endDate))
       .slice()
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.order - b.order));
-  }, [plan.tasks, weekStartKey]);
+  }, [plan.tasks, plan.visitDays, weekStartKey]);
   // 작업별 코칭 멘트(서버 생성, 주 단위 캐시) → id로 매핑. 완료 상태는 plan(weekTasks)에서 실시간.
   const messageById = useMemo(() => {
     const m = new Map<number, string>();
@@ -2079,17 +2124,25 @@ function DayPanel({
 
         {delayable.length > 0 && (
           <Box>
-            <Group gap={6} mb={4}>
-              <IconClock size={16} color="var(--mantine-color-orange-6)" />
-              <Text size="sm" fw={700}>
-                일정 지연
-              </Text>
-            </Group>
-            <Text size="xs" c="dimmed" mb={8}>
-              비·일정 변경으로 이 날 작업을 지연해야 하면 며칠 지연할지 정해 적용하세요. 이후 일정도
-              함께 밀립니다.
-            </Text>
-            <Group gap={6} align="center">
+            <UnstyledButton onClick={() => setDelayOpen((v) => !v)} w="100%">
+              <Group gap={6} mb={4} wrap="nowrap">
+                <IconClock size={16} color="var(--mantine-color-orange-6)" />
+                <Text size="sm" fw={700}>
+                  일정 지연
+                </Text>
+                <IconChevronDown
+                  size={14}
+                  style={{
+                    marginLeft: 'auto',
+                    color: 'var(--mantine-color-gray-6)',
+                    transform: delayOpen ? 'rotate(180deg)' : 'none',
+                    transition: 'transform 160ms ease',
+                  }}
+                />
+              </Group>
+            </UnstyledButton>
+            <Collapse in={delayOpen}>
+              <Group gap={6} align="center">
               <NumberInput
                 size="xs"
                 w={80}
@@ -2116,9 +2169,10 @@ function DayPanel({
                   });
                 }}
               >
-                지연 적용
+                지연 적용하기
               </Button>
             </Group>
+            </Collapse>
           </Box>
         )}
 
@@ -2163,6 +2217,13 @@ function DayPanel({
                       </Text>
                       <Text span size="xs" c="dimmed">
                         {dayjs(t.date).format('M.D')}({KOR_WEEKDAYS[dayjs(t.date).day()]})
+                        {t.endDate && t.endDate !== t.date && (
+                          <>
+                            {' ~ '}
+                            {dayjs(t.endDate).format('M.D')}(
+                            {KOR_WEEKDAYS[dayjs(t.endDate).day()]})
+                          </>
+                        )}
                       </Text>
                     </Group>
                     <Text size="sm" c={done ? 'dimmed' : undefined}>
