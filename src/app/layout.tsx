@@ -11,8 +11,9 @@ import '@mantine/charts/styles.css';
 import '@mantine/dates/styles.css';
 
 export const metadata: Metadata = {
-  title: '키워팜 — AI 작목 추천 & 디지털 트윈',
-  description: '귀농인·주말농장인을 위한 AI 영농 플랫폼',
+  title: '키워팜 — AI 텃밭 추천·관리 플랫폼',
+  description:
+    '지역·장소·일조만 입력하면 AI가 지금 심기 좋은 텃밭 작물을 추천하고, 파종부터 수확까지 영농 캘린더·재배 정보·챗봇 상담으로 관리해 드립니다.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
