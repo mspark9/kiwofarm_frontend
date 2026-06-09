@@ -161,7 +161,7 @@ export interface CropSummary {
   mode?: 'pdf' | 'general';
 }
 
-// ───────────── 영농 캘린더 (RAG 농사계획 + 메모 + 일정 재조정) ─────────────
+// ───────────── 텃밭 캘린더 (RAG 농사계획 + 메모 + 일정 재조정) ─────────────
 
 export type TaskCategory =
   | 'seeding'
@@ -185,12 +185,13 @@ export interface GrowConditions {
 
 export interface FarmPlanCreate {
   startDate: string; // YYYY-MM-DD
+  name?: string | null; // 텃밭 고유 이름(선택)
   itemCode: string;
   kindCode: string;
   cropName: string;
   region: string;
   province?: string;
-  area: number;
+  area?: number | null; // 텃밭은 면적 선택 — 미입력이면 생략(소규모로 처리)
   areaUnit: AreaUnit;
   visitFrequency?: string; // weekly_1 | weekly_2 | weekly_3 | daily
   visitDays?: number[]; // 0=일 ~ 6=토
@@ -230,6 +231,7 @@ export interface TaskMemo {
 export interface FarmPlan {
   id: number;
   startDate: string;
+  name?: string | null; // 텃밭 고유 이름. 없으면 "{작물} 텃밭"으로 표시.
   cropItemCode: string;
   cropKindCode: string;
   cropName: string;
@@ -254,6 +256,8 @@ export interface FarmPlanWithPoints extends FarmPlan {
 
 export interface HarvestRecipe {
   name: string;
+  materials?: string; // 재료
+  cooking?: string; // 조리 단계
   nutrients: Record<string, string>;
 }
 

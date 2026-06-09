@@ -280,7 +280,7 @@ function RecommendationCard({
         <Box>
           <Group justify="space-between" mb={6}>
             <Text size="xs" c="dimmed" fw={700} tt="uppercase" style={{ letterSpacing: 0.8 }}>
-              영농 캘린더
+              텃밭 캘린더
             </Text>
             <PhaseLegend />
           </Group>

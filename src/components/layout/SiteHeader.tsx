@@ -45,7 +45,7 @@ const MENU_LINKS: MenuLink[] = [
   },
   { label: "재배 정보", href: "/cultivation", icon: <IconBook2 size={16} /> },
   {
-    label: "영농 캘린더",
+    label: "텃밭 캘린더",
     href: "/calendar",
     icon: <IconCalendarEvent size={16} />,
   },
@@ -106,21 +106,16 @@ export function SiteHeader() {
           <Group justify="space-between" align="center" wrap="nowrap">
             <UnstyledButton component={Link} href="/">
               <Group gap={8} wrap="nowrap">
-                <Box
-                  w={30}
-                  h={30}
-                  style={{
-                    borderRadius: 8,
-                    background:
-                      "linear-gradient(135deg, var(--mantine-color-green-5), var(--mantine-color-teal-6))",
-                    display: "grid",
-                    placeItems: "center",
-                    color: "white",
-                    boxShadow: "0 6px 16px -6px rgba(34,139,84,0.55)",
-                  }}
-                >
-                  <IconLeaf size={18} stroke={2.4} />
-                </Box>
+                {/* 자체 그라데이션·라운드를 가진 앱 아이콘 SVG(투명 배경) — 정적이라 일반 img.
+                    별도 box-shadow/border-radius 를 주면 투명 여백이 흰 타일처럼 보여 제거. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/icons/app-icon.svg"
+                  alt="키워팜"
+                  width={40}
+                  height={40}
+                  style={{ display: "block" }}
+                />
                 <Text fw={800} fz={18} style={{ letterSpacing: -0.5 }}>
                   키워팜
                 </Text>

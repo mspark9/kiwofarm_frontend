@@ -1,11 +1,13 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ActionIcon,
   Anchor,
   Badge,
   Box,
   Card,
+  Collapse,
   Container,
   Group,
   Modal,
@@ -23,6 +25,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import {
   IconCalendarHeart,
+  IconChevronDown,
   IconExternalLink,
   IconFlame,
   IconInfoCircle,
@@ -32,6 +35,7 @@ import {
   IconSparkles,
   IconTargetArrow,
   IconUsers,
+  IconX,
 } from '@tabler/icons-react';
 import {
   fetchCompare,
@@ -42,7 +46,14 @@ import {
 import { mediaUrl } from '@/lib/constants';
 import { cropEmoji } from '@/lib/cropEmoji';
 import { cropIconSrc } from '@/lib/cropIcon';
-import type { BadgeOut, CollectionEntry, CropJournalOut, HarvestCard, PointsOut } from '@/lib/types';
+import type {
+  BadgeOut,
+  CollectionEntry,
+  CropJournalOut,
+  HarvestCard,
+  HarvestRecipe,
+  PointsOut,
+} from '@/lib/types';
 
 const MONTH_LABEL = (m: number) => `${m}월`;
 const DIFFICULTY_LABEL: Record<number, string> = { 1: '쉬움', 2: '보통', 3: '도전' };
@@ -96,6 +107,22 @@ export default function CollectionPage() {
   });
 
   const col = summary.data?.collection;
+
+  // ?crop=slug|name 딥링크(수확 인증 → 도감) — 수집된 작물이면 카드 자동 오픈(최초 1회).
+  const deepLinkedRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkedRef.current || !col) return;
+    const param = new URLSearchParams(window.location.search).get('crop');
+    if (!param) return;
+    const match = col.entries.find(
+      (e) => e.collected && (e.cropSlug === param || e.cropName === param),
+    );
+    if (match) {
+      setSelected(match);
+      deepLinkedRef.current = true;
+    }
+  }, [col]);
+
   const streak = summary.data?.streak;
   const points = summary.data?.points;
   const badges = summary.data?.badges ?? [];
@@ -716,6 +743,15 @@ function HarvestCardModal({
                   </Text>
                 </Box>
               </Group>
+              <ActionIcon
+                variant="transparent"
+                color="white"
+                onClick={onClose}
+                aria-label="닫기"
+                style={{ flexShrink: 0 }}
+              >
+                <IconX size={22} />
+              </ActionIcon>
             </Group>
           </Box>
 
@@ -747,9 +783,12 @@ function HarvestCardModal({
                         <Text fw={700} size="sm" mb={6}>
                           🍳 추천 레시피
                         </Text>
+                        <Text size="xs" c="dimmed" mb={6}>
+                          레시피를 누르면 재료·조리법을 볼 수 있어요.
+                        </Text>
                         <Stack gap={6}>
                           {c.recipes.map((r) => (
-                            <RecipeRow key={r.name} name={r.name} nutrients={r.nutrients} />
+                            <RecipeRow key={r.name} recipe={r} />
                           ))}
                         </Stack>
                       </Box>
@@ -911,17 +950,37 @@ function CropCompareBlock({
   );
 }
 
-function RecipeRow({ name, nutrients }: { name: string; nutrients: Record<string, string> }) {
+function RecipeRow({ recipe }: { recipe: HarvestRecipe }) {
+  const [open, setOpen] = useState(false);
+  const { name, materials, cooking, nutrients } = recipe;
   const kcal = nutrients['에너지(kcal)'];
   const carb = nutrients['탄수화물(g)'];
   const protein = nutrients['단백질(g)'];
   const num = (v?: string) => (v ? Math.round(Number(v)) : null);
+  const hasDetail = Boolean(materials?.trim() || cooking?.trim());
   return (
     <Card radius="md" p="sm" withBorder bg="gray.0">
-      <Group justify="space-between" wrap="nowrap" gap="xs">
-        <Text size="sm" fw={600} lineClamp={1}>
-          {name}
-        </Text>
+      <Group
+        justify="space-between"
+        wrap="nowrap"
+        gap="xs"
+        style={{ cursor: 'pointer' }}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+          <IconChevronDown
+            size={14}
+            style={{
+              flexShrink: 0,
+              color: 'var(--mantine-color-gray-6)',
+              transform: open ? 'rotate(180deg)' : 'none',
+              transition: 'transform 160ms ease',
+            }}
+          />
+          <Text size="sm" fw={600} lineClamp={1}>
+            {name}
+          </Text>
+        </Group>
         <Group gap={4} wrap="nowrap">
           {kcal && (
             <Badge size="sm" variant="light" color="orange" radius="sm">
@@ -940,6 +999,41 @@ function RecipeRow({ name, nutrients }: { name: string; nutrients: Record<string
           )}
         </Group>
       </Group>
+
+      <Collapse in={open}>
+        <Stack
+          gap={8}
+          mt="sm"
+          pt="sm"
+          style={{ borderTop: '1px solid var(--mantine-color-gray-2)' }}
+        >
+          {materials?.trim() && (
+            <Box>
+              <Text size="xs" fw={700} c="green.8" mb={2}>
+                🥗 재료
+              </Text>
+              <Text size="xs" c="gray.7" style={{ whiteSpace: 'pre-line' }} lh={1.6}>
+                {materials}
+              </Text>
+            </Box>
+          )}
+          {cooking?.trim() && (
+            <Box>
+              <Text size="xs" fw={700} c="green.8" mb={2}>
+                👩‍🍳 조리법
+              </Text>
+              <Text size="xs" c="gray.7" style={{ whiteSpace: 'pre-line' }} lh={1.7}>
+                {cooking}
+              </Text>
+            </Box>
+          )}
+          {!hasDetail && (
+            <Text size="xs" c="dimmed">
+              조리법 정보가 없어요. 아래 「더 보기」 링크에서 확인해 주세요.
+            </Text>
+          )}
+        </Stack>
+      </Collapse>
     </Card>
   );
 }

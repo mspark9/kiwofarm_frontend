@@ -36,6 +36,7 @@ import {
   Stack,
   Text,
   Textarea,
+  TextInput,
   ThemeIcon,
   Title,
   Tooltip,
@@ -64,6 +65,7 @@ import {
   IconPlus,
   IconSparkles,
   IconTrash,
+  IconX,
 } from '@tabler/icons-react';
 import { isAxiosError } from 'axios';
 import dayjs from 'dayjs';
@@ -75,6 +77,7 @@ import {
   getPlanAlerts,
   getWeeklyDigest,
   listPlans,
+  renamePlan,
   updateTask,
   uploadMemoImages,
   upsertMemo,
@@ -87,6 +90,7 @@ import type {
   FarmPlan,
   FarmTask,
   HarvestJournalResponse,
+  MemoImage,
   TaskCategory,
 } from '@/lib/types';
 
@@ -125,10 +129,70 @@ const WEEKDAY_LABEL: Record<number, string> = Object.fromEntries(
 const KOR_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 const MIN_YEAR = 1970; // 달력 연도 하한
 
+// 텃밭 고유 이름 — 없으면 "{작물} 텃밭" 기본값으로 표시.
+const planDisplayName = (p: { name?: string | null; cropName: string }) =>
+  p.name?.trim() || `${p.cropName} 텃밭`;
+
 // 색은 '할 일 카테고리' 구분 전용. 작물(계획)은 색이 아니라 이름·회색톤 배지로 구분한다.
 interface LoadedPlan {
   id: number;
   plan: FarmPlan;
+}
+
+// 메모 사진 그리드 — 모두보기(읽기전용)와 날짜 패널(삭제 가능)에서 공용.
+// onDelete 가 있으면 각 사진에 삭제 버튼을 띄운다. 비어 있으면 아무것도 렌더하지 않음.
+function MemoImageGallery({
+  images,
+  cols,
+  radius = 6,
+  onDelete,
+  deleting,
+}: {
+  images: MemoImage[];
+  cols: number | { base: number; sm: number };
+  radius?: number;
+  onDelete?: (imageId: number) => void;
+  deleting?: boolean;
+}) {
+  if (images.length === 0) return null;
+  return (
+    <SimpleGrid cols={cols} spacing="xs">
+      {images.map((img) => (
+        <Box key={img.id} pos="relative" style={{ aspectRatio: '1 / 1' }}>
+          <a href={mediaUrl(img.url)} target="_blank" rel="noreferrer">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={mediaUrl(img.url)}
+              alt={img.originalName ?? '메모 사진'}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                borderRadius: radius,
+                border: '1px solid var(--mantine-color-gray-3)',
+              }}
+            />
+          </a>
+          {onDelete && (
+            <ActionIcon
+              size="sm"
+              radius="xl"
+              color="red"
+              variant="filled"
+              pos="absolute"
+              top={4}
+              right={4}
+              loading={deleting}
+              onClick={() => onDelete(img.id)}
+              aria-label="사진 삭제"
+            >
+              <IconTrash size={12} />
+            </ActionIcon>
+          )}
+        </Box>
+      ))}
+    </SimpleGrid>
+  );
 }
 
 function CalendarRoot() {
@@ -407,14 +471,14 @@ function AllPlansView({
       onDeleted(id);
       qc.removeQueries({ queryKey: ['farmplan', id] });
       qc.invalidateQueries({ queryKey: ['plans', 'list'] });
-      notifications.show({ color: 'gray', message: '캘린더를 삭제했습니다.' });
+      notifications.show({ color: 'gray', message: '텃밭 계획을 삭제했습니다.' });
     },
     onError: () => notifications.show({ color: 'red', message: '삭제에 실패했습니다.' }),
   });
   const onDelete = (id: number, name: string) =>
     setConfirm({
-      title: '캘린더 삭제',
-      message: `'${name}' 캘린더를 삭제할까요?\n작업·메모·사진이 모두 사라지며 되돌릴 수 없습니다.`,
+      title: '텃밭 계획 삭제',
+      message: `'${name}' 계획을 삭제할까요?\n작업·메모·사진이 모두 사라지며 되돌릴 수 없습니다.`,
       action: () => deleteMut.mutate(id),
     });
 
@@ -430,7 +494,7 @@ function AllPlansView({
         qc.removeQueries({ queryKey: ['farmplan', id] });
       }
       qc.invalidateQueries({ queryKey: ['plans', 'list'] });
-      notifications.show({ color: 'gray', message: `${ids.length}개 캘린더를 삭제했습니다.` });
+      notifications.show({ color: 'gray', message: `${ids.length}개 계획을 삭제했습니다.` });
     },
     onError: () => notifications.show({ color: 'red', message: '삭제에 실패했습니다.' }),
   });
@@ -502,14 +566,14 @@ function AllPlansView({
             <Stack gap="sm">
               <Group justify="space-between" wrap="wrap" gap="sm">
                 <Title order={2} fz={{ base: 22, md: 28 }} fw={800}>
-                  내 영농 캘린더
+                  내 텃밭 캘린더
                 </Title>
                 <Button
                   size="compact-sm"
                   color="green"
                   leftSection={<IconPlus size={14} />}
                   component={Link}
-                  href="/planting"
+                  href="/planting/plan"
                 >
                   추가
                 </Button>
@@ -575,6 +639,7 @@ function AllPlansView({
                     let lastKey = plan.startDate;
                     for (const t of plan.tasks) if (t.endDate > lastKey) lastKey = t.endDate;
                     const period = `${dayjs(plan.startDate).format('YY.MM.DD')} - ${dayjs(lastKey).format('YY.MM.DD')}`;
+                    const planName = planDisplayName(plan);
                     // 삭제 모드면 화살표 대신 휴지통(개별 삭제), 아니면 열기 화살표.
                     const rowAction = deleteMode ? (
                       <ActionIcon
@@ -583,8 +648,8 @@ function AllPlansView({
                         color="red"
                         style={{ flexShrink: 0 }}
                         loading={deleteMut.isPending && deleteMut.variables === id}
-                        onClick={() => onDelete(id, plan.cropName)}
-                        aria-label={`${plan.cropName} 캘린더 삭제`}
+                        onClick={() => onDelete(id, planName)}
+                        aria-label={`${planName} 삭제`}
                       >
                         <IconTrash size={16} />
                       </ActionIcon>
@@ -596,7 +661,7 @@ function AllPlansView({
                         style={{ flexShrink: 0 }}
                         component={Link}
                         href={`/calendar?planId=${id}`}
-                        aria-label={`${plan.cropName} 캘린더 열기`}
+                        aria-label={`${planName} 열기`}
                       >
                         <IconChevronRight size={16} />
                       </ActionIcon>
@@ -617,7 +682,7 @@ function AllPlansView({
                               color="green"
                               checked={on}
                               onChange={() => toggle(id)}
-                              aria-label={`${plan.cropName} 캘린더 표시`}
+                              aria-label={`${planName} 표시`}
                             />
                             {isMobile ? (
                               // 모바일
@@ -626,10 +691,10 @@ function AllPlansView({
                                   <UnstyledButton
                                     onClick={() => toggle(id)}
                                     style={{ minWidth: 0 }}
-                                    aria-label={`${plan.cropName} 달력 표시 토글`}
+                                    aria-label={`${planName} 표시 토글`}
                                   >
                                     <Text fw={600} truncate c={on ? undefined : 'dimmed'}>
-                                      {plan.cropName}
+                                      {planName}
                                     </Text>
                                   </UnstyledButton>
                                   {rowAction}
@@ -644,10 +709,10 @@ function AllPlansView({
                                 <UnstyledButton
                                   onClick={() => toggle(id)}
                                   style={{ flex: 1, minWidth: 0 }}
-                                  aria-label={`${plan.cropName} 달력 표시 토글`}
+                                  aria-label={`${planName} 표시 토글`}
                                 >
                                   <Text fw={600} truncate c={on ? undefined : 'dimmed'}>
-                                    {plan.cropName}
+                                    {planName}
                                   </Text>
                                 </UnstyledButton>
                                 <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
@@ -751,7 +816,7 @@ function AllCalendar({
             for (const e of entries) {
               if (!cats.includes(e.task.category)) cats.push(e.task.category);
             }
-            const shown = cats.slice(0, 5);
+            const shown = cats.slice(0, 4);
             const wd = dayjs(date).day();
             const isSelected = selected ? dayjs(date).isSame(selected, 'date') : false;
             // 보이는 작물 중 하나라도 그 기간 안의 방문 요일이면 방문일로 표시.
@@ -800,15 +865,18 @@ function AllCalendar({
                       key={c}
                       w={7}
                       h={7}
+                      role="img"
+                      title={CATEGORY_META[c].label}
+                      aria-label={CATEGORY_META[c].label}
                       style={{
                         borderRadius: '50%',
                         background: `var(--mantine-color-${CATEGORY_META[c].color}-6)`,
                       }}
                     />
                   ))}
-                  {cats.length > 5 && (
+                  {cats.length > 4 && (
                     <Text size="9px" c="dimmed" lh={1}>
-                      +{cats.length - 5}
+                      +{cats.length - 4}
                     </Text>
                   )}
                 </Group>
@@ -971,24 +1039,9 @@ function AllDayPanel({
                     </Group>
                   )}
                   {images.length > 0 && (
-                    <SimpleGrid cols={4} spacing={6} px={4}>
-                      {images.map((img) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <a key={img.id} href={mediaUrl(img.url)} target="_blank" rel="noreferrer">
-                          <img
-                            src={mediaUrl(img.url)}
-                            alt={img.originalName ?? '메모 사진'}
-                            style={{
-                              width: '100%',
-                              aspectRatio: '1 / 1',
-                              objectFit: 'cover',
-                              borderRadius: 6,
-                              border: '1px solid var(--mantine-color-gray-3)',
-                            }}
-                          />
-                        </a>
-                      ))}
-                    </SimpleGrid>
+                    <Box px={4}>
+                      <MemoImageGallery images={images} cols={4} radius={6} />
+                    </Box>
                   )}
                 </Stack>
               </Box>
@@ -1045,7 +1098,7 @@ function PlanView({ planId }: { planId: number }) {
       <Box bg="gray.0" mih="100vh" py={48}>
         <Container size="lg">
           <Alert color="red" icon={<IconAlertCircle size={16} />} radius="md">
-            농사 계획을 불러오지 못했습니다.
+            텃밭 계획을 불러오지 못했습니다.
           </Alert>
         </Container>
       </Box>
@@ -1083,8 +1136,26 @@ function PlanView({ planId }: { planId: number }) {
 }
 
 function PlanHeader({ plan }: { plan: FarmPlan }) {
+  const qc = useQueryClient();
   const [harvestResult, setHarvestResult] = useState<HarvestJournalResponse | null>(null);
   const [infoOpen, setInfoOpen] = useState(true);
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+
+  const renameMut = useMutation({
+    mutationFn: (name: string) => renamePlan(plan.id, name),
+    onSuccess: () => {
+      setEditingName(false);
+      qc.invalidateQueries({ queryKey: ['farmplan', plan.id] });
+      qc.invalidateQueries({ queryKey: ['plans', 'list'] });
+    },
+    onError: () =>
+      notifications.show({ color: 'red', message: '이름 변경에 실패했어요.' }),
+  });
+  const startEditName = () => {
+    setNameInput(plan.name ?? '');
+    setEditingName(true);
+  };
   const photoCount = plan.memos.reduce((n, m) => n + m.images.length, 0);
   const memoDays = plan.memos.filter((m) => m.content.trim() || m.images.length > 0).length;
 
@@ -1115,7 +1186,10 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
     {
       key: 'area',
       label: '면적',
-      value: `${plan.area.toLocaleString()} ${AREA_UNIT_LABEL[plan.areaUnit]}`,
+      // 0 = 면적 미지정(화분·소규모)
+      value: plan.area
+        ? `${plan.area.toLocaleString()} ${AREA_UNIT_LABEL[plan.areaUnit]}`
+        : '화분·소규모',
     },
     { key: 'start', label: '시작', value: dayjs(plan.startDate).format('YYYY.MM.DD') },
     { key: 'visit', label: '방문', color: 'teal.7', value: visitValue },
@@ -1144,9 +1218,59 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
               </Group>
             </UnstyledButton>
           </Group>
-          <Title order={2} fz={{ base: 22, md: 28 }} fw={800} mt={6}>
-            {plan.cropName} 농사 계획
-          </Title>
+          {editingName ? (
+            <Group gap={6} mt={6} wrap="nowrap" maw={460}>
+              <TextInput
+                size="md"
+                style={{ flex: 1 }}
+                placeholder={`${plan.cropName} 텃밭`}
+                maxLength={40}
+                value={nameInput}
+                onChange={(e) => setNameInput(e.currentTarget.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') renameMut.mutate(nameInput);
+                  if (e.key === 'Escape') setEditingName(false);
+                }}
+                data-autofocus
+                autoFocus
+              />
+              <ActionIcon
+                size="lg"
+                variant="filled"
+                color="green"
+                loading={renameMut.isPending}
+                onClick={() => renameMut.mutate(nameInput)}
+                aria-label="이름 저장"
+              >
+                <IconCheck size={18} />
+              </ActionIcon>
+              <ActionIcon
+                size="lg"
+                variant="subtle"
+                color="gray"
+                onClick={() => setEditingName(false)}
+                aria-label="취소"
+              >
+                <IconX size={18} />
+              </ActionIcon>
+            </Group>
+          ) : (
+            <Group gap={6} mt={6} wrap="nowrap" align="center">
+              <Title order={2} fz={{ base: 22, md: 28 }} fw={800}>
+                {planDisplayName(plan)}
+              </Title>
+              <Tooltip label="텃밭 이름 수정">
+                <ActionIcon
+                  variant="subtle"
+                  color="gray"
+                  onClick={startEditName}
+                  aria-label="텃밭 이름 수정"
+                >
+                  <IconPencil size={16} />
+                </ActionIcon>
+              </Tooltip>
+            </Group>
+          )}
         </Box>
         <Stack gap={4} align="flex-end">
           <Tooltip
@@ -1298,7 +1422,7 @@ function HarvestResultModal({
               </Text>
               <Button
                 component={Link}
-                href="/collection"
+                href={`/collection?crop=${encodeURIComponent(cropName)}`}
                 color="orange"
                 radius="md"
                 leftSection={<IconSparkles size={16} />}
@@ -1379,6 +1503,7 @@ const MAX_LANES = 4;
 
 interface BarSeg {
   color: string;
+  label: string; // 접근성/툴팁용 — "카테고리: 작업명"
   isStart: boolean;
   isEnd: boolean;
 }
@@ -1421,6 +1546,7 @@ function computeBars(plan: FarmPlan): {
         const arr = barsByDate.get(k) ?? [];
         arr[lane] = {
           color: CATEGORY_META[task.category].color,
+          label: `${CATEGORY_META[task.category].label}: ${task.title}`,
           // 방문일만 표시할 땐 각 조각을 독립 알약 모양으로(양끝 둥글게).
           isStart: restrict ? true : k === task.date,
           isEnd: restrict ? true : k === task.endDate,
@@ -1693,6 +1819,9 @@ function PlanCalendar({
                       <Box
                         key={lane}
                         h={5}
+                        role={seg ? 'img' : undefined}
+                        title={seg?.label}
+                        aria-label={seg?.label}
                         style={{
                           width: '100%',
                           background: seg
@@ -1715,6 +1844,9 @@ function PlanCalendar({
                     key={c}
                     w={5}
                     h={5}
+                    role="img"
+                    title={CATEGORY_META[c].label}
+                    aria-label={CATEGORY_META[c].label}
                     style={{
                       borderRadius: '50%',
                       background: `var(--mantine-color-${CATEGORY_META[c].color}-6)`,
@@ -2051,40 +2183,15 @@ function DayPanel({
           />
 
           {existingImages.length > 0 && (
-            <SimpleGrid cols={{ base: 3, sm: 4 }} spacing="xs" mt="xs">
-              {existingImages.map((img) => (
-                <Box key={img.id} pos="relative" style={{ aspectRatio: '1 / 1' }}>
-                  <a href={mediaUrl(img.url)} target="_blank" rel="noreferrer">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={mediaUrl(img.url)}
-                      alt={img.originalName ?? '메모 사진'}
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        borderRadius: 8,
-                        border: '1px solid var(--mantine-color-gray-3)',
-                      }}
-                    />
-                  </a>
-                  <ActionIcon
-                    size="sm"
-                    radius="xl"
-                    color="red"
-                    variant="filled"
-                    pos="absolute"
-                    top={4}
-                    right={4}
-                    loading={deleteImageMut.isPending}
-                    onClick={() => deleteImageMut.mutate(img.id)}
-                    aria-label="사진 삭제"
-                  >
-                    <IconTrash size={12} />
-                  </ActionIcon>
-                </Box>
-              ))}
-            </SimpleGrid>
+            <Box mt="xs">
+              <MemoImageGallery
+                images={existingImages}
+                cols={{ base: 3, sm: 4 }}
+                radius={8}
+                onDelete={(id) => deleteImageMut.mutate(id)}
+                deleting={deleteImageMut.isPending}
+              />
+            </Box>
           )}
 
           <input

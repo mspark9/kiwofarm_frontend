@@ -88,7 +88,7 @@ function Hero() {
 
               <Text size="lg" c="dimmed" maw={520} lh={1.65}>
                 지역·장소·일조만 입력하면 AI가 지금 심기 좋은 작목을 골라주고, 파종부터 수확까지
-                영농 캘린더로 챙겨드립니다.
+                텃밭 캘린더로 챙겨드립니다.
               </Text>
 
               <Group gap="md" mt="xs" className={styles.ctaGroup}>
@@ -369,7 +369,7 @@ function HeroPreview() {
         ))}
       </Card>
 
-      {/* 오른쪽 - 영농 캘린더 예시 */}
+      {/* 오른쪽 - 텃밭 캘린더 예시 */}
       <Box
         pos="absolute"
         style={{ bottom: -20, right: -18, zIndex: 3, width: 255, transform: 'rotate(4deg)' }}
@@ -421,7 +421,7 @@ const CROP_RECS: {
   },
 ];
 
-// 영농 캘린더 예시 - 카테고리 색 점으로 단일 작업 표현
+// 텃밭 캘린더 예시 - 카테고리 색 점으로 단일 작업 표현
 const CAL_DOTS: Record<number, string[]> = {
   3: ['lime'],
   6: ['red'],
@@ -580,7 +580,7 @@ const FEATURES: {
   },
   {
     icon: <IconCalendarEvent size={22} />,
-    title: '영농 캘린더',
+    title: '텃밭 캘린더',
     desc: '날짜별 농사 계획 · 작업 일정 자동 생성',
     tag: '농사 계획 빌더',
     color: 'lime',
@@ -747,7 +747,7 @@ function Stats() {
           <Stat
             icon={<IconCalendarEvent size={18} />}
             number="12개월"
-            label="영농 캘린더"
+            label="텃밭 캘린더"
             sub="파종~수확 작업 자동 생성"
           />
         </GridCol>
@@ -874,7 +874,7 @@ function FinalCTA() {
                 },
               }}
             >
-              영농 캘린더 보기
+              텃밭 캘린더 보기
             </Button>
           </Group>
         </Stack>
@@ -918,7 +918,7 @@ function Footer() {
               추천받기
             </Anchor>
             <Anchor component={Link} href="/calendar" size="sm" c="dimmed">
-              영농 캘린더
+              텃밭 캘린더
             </Anchor>
             <Anchor size="sm" c="dimmed" href="https://kiwofarm.com">
               kiwofarm.com

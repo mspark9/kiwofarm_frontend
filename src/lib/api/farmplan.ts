@@ -77,6 +77,15 @@ export async function updateSettings(
   return data;
 }
 
+// 텃밭 고유 이름 변경. 빈 문자열이면 백엔드가 기본값(null)로 비운다.
+export async function renamePlan(planId: number, name: string): Promise<FarmPlan> {
+  const { data } = await apiClient.patch<FarmPlan>(
+    `/api/v1/plans/${planId}/settings`,
+    { name },
+  );
+  return data;
+}
+
 export async function updateTask(
   planId: number,
   taskId: number,

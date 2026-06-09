@@ -165,7 +165,7 @@ function TwinInner({ cropId }: { cropId: string }) {
                 이 작목으로 시작하시겠어요?
               </Title>
               <Text size="sm" ta="center" style={{ color: 'rgba(255,255,255,0.86)' }}>
-                선택 시 출하 의사결정 대시보드와 영농 캘린더가 자동 생성됩니다.
+                선택 시 출하 의사결정 대시보드와 텃밭 캘린더가 자동 생성됩니다.
               </Text>
               <Group gap="sm" mt="xs">
                 <Button
