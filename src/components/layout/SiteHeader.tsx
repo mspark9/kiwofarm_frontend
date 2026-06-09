@@ -31,6 +31,7 @@ import {
   IconMenu2,
   IconMessageCircle,
   IconUserCircle,
+  IconUsersGroup,
 } from "@tabler/icons-react";
 
 type MenuLink = { label: string; href: string; icon: React.ReactNode };
@@ -49,6 +50,11 @@ const MENU_LINKS: MenuLink[] = [
     icon: <IconCalendarEvent size={16} />,
   },
   { label: "작물 도감", href: "/collection", icon: <IconBook2 size={16} /> },
+  {
+    label: "커뮤니티",
+    href: "/community",
+    icon: <IconUsersGroup size={16} />,
+  },
 ];
 
 export function SiteHeader() {
