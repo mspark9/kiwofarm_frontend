@@ -7,7 +7,6 @@ export type Place = '베란다' | '옥상' | '노지' | '실내';
 export type SunHours = '<3h' | '3~5h' | '>5h';
 export type Experience = '처음' | '1~2년' | '3년+';
 export type Direction = '남향' | '동향' | '서향' | '북향';
-export type StartWhen = 'now' | 'next_month';
 
 export interface PlantingInput {
   sigungu: string;
@@ -18,8 +17,10 @@ export interface PlantingInput {
   // 면적은 캘린더와 동일하게 값(area) + 단위(areaUnit)로 입력. 백엔드에는 ㎡(area_m2)로 환산해 전송.
   area?: number | null;
   areaUnit?: AreaUnit;
-  frequency?: string | null;
-  start: StartWhen;
+  // 방문 예정 요일 (0=일 ~ 6=토). 주당 방문 횟수가 관리 가능 빈도.
+  visitDays?: number[] | null;
+  // 재배 시작 날짜(YYYY-MM-DD). 비우면 오늘 기준 추천. 캘린더에서 직접 선택.
+  startDate?: string | null;
   facility: string[];
   prefs: string[];
   top_n: number;

@@ -22,12 +22,16 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
+import { useMediaQuery } from '@mantine/hooks';
+import { DatePickerInput } from '@mantine/dates';
+import dayjs from 'dayjs';
 import {
   IconAdjustments,
   IconArrowLeft,
   IconArrowRight,
   IconBuildingStore,
   IconCalendarTime,
+  IconCheck,
   IconChevronDown,
   IconClock,
   IconCompass,
@@ -36,6 +40,7 @@ import {
   IconRuler2,
   IconSparkles,
   IconSun,
+  IconX,
 } from '@tabler/icons-react';
 import type { Direction, PlantingInput } from '@/lib/api/planting';
 import type { AreaUnit } from '@/lib/types';
@@ -43,10 +48,8 @@ import {
   DIRECTION_OPTIONS,
   EXP_OPTIONS,
   FACILITY_OPTIONS,
-  FREQ_OPTIONS,
   PLACE_OPTIONS,
   PREF_OPTIONS,
-  START_OPTIONS,
   SUN_OPTIONS,
 } from '@/lib/planting/options';
 import {
@@ -55,6 +58,18 @@ import {
   savePlantingInput,
 } from '@/lib/planting/storage';
 import { RegionPicker } from '@/components/shared/RegionPicker';
+
+// 0=일 ~ 6=토. 표시는 월~일 순. 방문 예정 요일 선택용.
+const WEEKDAYS: { v: number; l: string }[] = [
+  { v: 1, l: '월' },
+  { v: 2, l: '화' },
+  { v: 3, l: '수' },
+  { v: 4, l: '목' },
+  { v: 5, l: '금' },
+  { v: 6, l: '토' },
+  { v: 0, l: '일' },
+];
+const KOR_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 // 저장된 sigungu("경기도 성남시") → province / city 분해.
 function splitSigungu(sigungu: string): { province: string; city: string } {
@@ -67,6 +82,7 @@ type FormValues = Omit<PlantingInput, 'sigungu'>;
 
 export default function PlantingWizardPage() {
   const router = useRouter();
+  const isMobile = useMediaQuery('(max-width: 48em)');
   const saved = loadPlantingInput();
   const initRegion = splitSigungu(saved?.sigungu ?? '');
 
@@ -83,8 +99,8 @@ export default function PlantingWizardPage() {
       direction: saved?.direction ?? null,
       area: saved?.area ?? null,
       areaUnit: saved?.areaUnit ?? 'pyeong',
-      frequency: saved?.frequency ?? null,
-      start: saved?.start ?? 'now',
+      visitDays: saved?.visitDays ?? null,
+      startDate: saved?.startDate ?? null,
       facility: saved?.facility ?? [],
       prefs: saved?.prefs ?? [],
       top_n: saved?.top_n ?? 6,
@@ -228,20 +244,60 @@ export default function PlantingWizardPage() {
 
             <Collapse in={advanced}>
               <Stack gap="lg" mt="lg">
-                <FieldRow icon={<IconCalendarTime size={16} />} label="관리 가능 빈도">
-                  <SegmentedControl
-                    fullWidth
-                    value={form.values.frequency ?? ''}
-                    onChange={(v) => form.setFieldValue('frequency', v || null)}
-                    data={[
-                      { label: '선택 안 함', value: '' },
-                      ...FREQ_OPTIONS.map((f) => ({ label: f, value: f })),
-                    ]}
-                  />
+                <FieldRow icon={<IconCalendarTime size={16} />} label="방문 예정 요일">
+                  <Text size="xs" c="dimmed" mb={8}>
+                    작물 관리 예정 요일을 선택하세요. 
+                  </Text>
+                  <Group grow gap="xs">
+                    {WEEKDAYS.map((w) => {
+                      const days = form.values.visitDays ?? [];
+                      const checked = days.includes(w.v);
+                      return (
+                        <Button
+                          key={w.v}
+                          size={isMobile ? 'xs' : 'sm'}
+                          radius="xl"
+                          px={isMobile ? 4 : 6}
+                          fz={isMobile ? 11 : undefined}
+                          variant={checked ? 'filled' : 'default'}
+                          color="green"
+                          leftSection={
+                            isMobile
+                              ? undefined
+                              : checked ? <IconCheck size={12} /> : <IconX size={12} />
+                          }
+                          styles={{
+                            section: checked ? undefined : { color: 'var(--mantine-color-gray-5)' },
+                          }}
+                          onClick={() =>
+                            form.setFieldValue(
+                              'visitDays',
+                              checked ? days.filter((d) => d !== w.v) : [...days, w.v],
+                            )
+                          }
+                        >
+                          {w.l}
+                        </Button>
+                      );
+                    })}
+                  </Group>
                 </FieldRow>
 
                 <FieldRow icon={<IconClock size={16} />} label="시작 시점">
-                  <SegmentedControl fullWidth data={START_OPTIONS} {...form.getInputProps('start')} />
+                  <DatePickerInput
+                    placeholder="재배 시작일 선택 (비우면 오늘 기준)"
+                    valueFormat="YYYY년 M월 D일"
+                    firstDayOfWeek={1}
+                    monthLabelFormat="YYYY년 M월"
+                    yearLabelFormat="YYYY년"
+                    monthsListFormat="M월"
+                    clearable
+                    weekdayFormat={(date) => KOR_WEEKDAYS[date.getDay()]}
+                    value={form.values.startDate ? dayjs(form.values.startDate).toDate() : null}
+                    onChange={(v) =>
+                      form.setFieldValue('startDate', v ? dayjs(v).format('YYYY-MM-DD') : null)
+                    }
+                  />
                 </FieldRow>
 
                 <FieldRow icon={<IconBuildingStore size={16} />} label="보유 시설">

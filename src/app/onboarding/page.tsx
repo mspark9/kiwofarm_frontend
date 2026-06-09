@@ -23,28 +23,41 @@ import {
   UnstyledButton,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
+import { useMediaQuery } from '@mantine/hooks';
 import {
   IconArrowLeft,
   IconArrowRight,
   IconBuildingWarehouse,
   IconCalendarTime,
   IconCash,
+  IconCheck,
   IconHome2,
   IconLeaf,
   IconMapPin,
   IconRuler2,
   IconSparkles,
   IconUsers,
+  IconX,
 } from '@tabler/icons-react';
 import type {
   AreaUnit,
   FacilityType,
   Mode,
   OnboardingInput,
-  VisitFrequency,
 } from '@/lib/types';
 import { ONBOARDING_STORAGE_KEY, PREFERRED_CROP_OPTIONS } from '@/lib/constants';
 import { RegionPicker } from '@/components/shared/RegionPicker';
+
+// 0=일 ~ 6=토. 표시는 월~일 순. 방문 예정 요일 선택용.
+const WEEKDAYS: { v: number; l: string }[] = [
+  { v: 1, l: '월' },
+  { v: 2, l: '화' },
+  { v: 3, l: '수' },
+  { v: 4, l: '목' },
+  { v: 5, l: '금' },
+  { v: 6, l: '토' },
+  { v: 0, l: '일' },
+];
 
 const COMMON_FEATURES = [
   'AI 작목 추천',
@@ -83,7 +96,7 @@ const MODE_CARDS: {
       desc: '도시 텃밭·주말농장. 수확량을 예측하고 직거래와 이웃나눔으로 연결합니다.',
       bullets: [
         '직거래·이웃나눔 연결',
-        '방문 빈도 맞춤 작목',
+        '방문 요일 맞춤 작목',
         '가족 단위 수확량 기준',
       ],
       color: 'teal',
@@ -107,7 +120,7 @@ export default function OnboardingPage() {
       preferredCrops: [],
       budgetManwon: 3000,
       facility: 'vinyl_house',
-      visitFrequency: 'weekly_1',
+      visitDays: [6],
     },
     validate: {
       region: (v) => (v ? null : '지역을 선택해 주세요'),
@@ -331,6 +344,7 @@ function ConditionForm({
   form: ReturnType<typeof useForm<OnboardingInput>>;
   mode: Mode;
 }) {
+  const isMobile = useMediaQuery('(max-width: 48em)');
   return (
     <Stack gap="md" mt="md">
       <Box>
@@ -413,18 +427,41 @@ function ConditionForm({
           )}
 
           {mode === 'weekend' && (
-            <FieldRow icon={<IconCalendarTime size={16} />} label="방문 빈도">
-              <SegmentedControl
-                fullWidth
-                value={form.values.visitFrequency ?? 'weekly_1'}
-                onChange={(v) => form.setFieldValue('visitFrequency', v as VisitFrequency)}
-                data={[
-                  { label: '주 1회', value: 'weekly_1' },
-                  { label: '주 2회', value: 'weekly_2' },
-                  { label: '격주', value: 'biweekly' },
-                  { label: '월 1회', value: 'monthly' },
-                ]}
-              />
+            <FieldRow icon={<IconCalendarTime size={16} />} label="방문 예정 요일">
+              <Text size="xs" c="dimmed" mb={8}>
+                밭에 갈 수 있는 요일을 선택하세요. 방문 횟수가 많을수록 손이 가는 작목까지 추천합니다.
+              </Text>
+              <Group grow gap="xs">
+                {WEEKDAYS.map((w) => {
+                  const days = form.values.visitDays ?? [];
+                  const checked = days.includes(w.v);
+                  return (
+                    <Button
+                      key={w.v}
+                      size={isMobile ? 'xs' : 'sm'}
+                      radius="xl"
+                      px={isMobile ? 4 : 6}
+                      fz={isMobile ? 11 : undefined}
+                      variant={checked ? 'filled' : 'default'}
+                      color="green"
+                      leftSection={
+                        isMobile ? undefined : checked ? <IconCheck size={12} /> : <IconX size={12} />
+                      }
+                      styles={{
+                        section: checked ? undefined : { color: 'var(--mantine-color-gray-5)' },
+                      }}
+                      onClick={() =>
+                        form.setFieldValue(
+                          'visitDays',
+                          checked ? days.filter((d) => d !== w.v) : [...days, w.v],
+                        )
+                      }
+                    >
+                      {w.l}
+                    </Button>
+                  );
+                })}
+              </Group>
             </FieldRow>
           )}
 

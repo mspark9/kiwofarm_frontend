@@ -152,28 +152,6 @@ export default function PlantingResultPage() {
                 </Text>
               </Box>
 
-              <Stack gap="md">
-                {query.data.recommendations.map((it, idx) => (
-                  <CropCard
-                    key={it.crop_id}
-                    item={it}
-                    rank={idx + 1}
-                    explain={explains?.[it.crop_id] ?? it.ai_explain ?? null}
-                    explainLoading={explainQuery.isFetching && !explains}
-                    checked={selected.has(it.crop_id)}
-                    onToggle={() => toggle(it.crop_id)}
-                  />
-                ))}
-              </Stack>
-
-              {query.data.next_month_candidates.length > 0 && (
-                <Card radius="md" p="sm" withBorder bg="gray.0">
-                  <Text size="xs" c="dimmed">
-                    다음 달 가능: {query.data.next_month_candidates.join(', ')}
-                  </Text>
-                </Card>
-              )}
-
               <Button
                 color="green"
                 size="md"
@@ -196,6 +174,28 @@ export default function PlantingResultPage() {
               >
                 이 결과로 챗봇 상담하기
               </Button>
+
+              <Stack gap="md">
+                {query.data.recommendations.map((it, idx) => (
+                  <CropCard
+                    key={it.crop_id}
+                    item={it}
+                    rank={idx + 1}
+                    explain={explains?.[it.crop_id] ?? it.ai_explain ?? null}
+                    explainLoading={explainQuery.isFetching && !explains}
+                    checked={selected.has(it.crop_id)}
+                    onToggle={() => toggle(it.crop_id)}
+                  />
+                ))}
+              </Stack>
+
+              {query.data.next_month_candidates.length > 0 && (
+                <Card radius="md" p="sm" withBorder bg="gray.0">
+                  <Text size="xs" c="dimmed">
+                    다음 달 가능: {query.data.next_month_candidates.join(', ')}
+                  </Text>
+                </Card>
+              )}
             </>
           )}
         </Stack>

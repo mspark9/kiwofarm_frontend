@@ -9,6 +9,20 @@ export const PLANTING_INPUT_KEY = 'kiwofarm:planting:input';
 export const PLANTING_RESULT_KEY = 'kiwofarm:planting:result';
 export const PLANTING_CHAT_KEY = 'kiwofarm:planting:chat';
 
+// 구버전 frequency('매일'·'주2~3회'·'주말만') → 방문 요일(0=일~6=토). 저장값 마이그레이션용.
+export function freqToVisitDays(freq: string | null | undefined): number[] {
+  switch (freq) {
+    case '매일':
+      return [1, 2, 3, 4, 5, 6, 0];
+    case '주2~3회':
+      return [3, 6]; // 수·토
+    case '주말만':
+      return [6, 0]; // 토·일
+    default:
+      return [6];
+  }
+}
+
 export const defaultPlantingInput: PlantingInput = {
   sigungu: '',
   place: '베란다',
@@ -17,8 +31,8 @@ export const defaultPlantingInput: PlantingInput = {
   direction: null,
   area: null,
   areaUnit: 'pyeong',
-  frequency: null,
-  start: 'now',
+  visitDays: null,
+  startDate: null,
   facility: [],
   prefs: [],
   top_n: 6,
@@ -29,11 +43,18 @@ export function loadPlantingInput(): PlantingInput | null {
   try {
     const raw = window.localStorage.getItem(PLANTING_INPUT_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<PlantingInput> & { area_m2?: number | null };
+    const parsed = JSON.parse(raw) as Partial<PlantingInput> & {
+      area_m2?: number | null;
+      frequency?: string | null;
+    };
     // 구버전(area_m2 ㎡ 단독) → area + areaUnit('sqm') 마이그레이션.
     if (parsed.area == null && typeof parsed.area_m2 === 'number') {
       parsed.area = parsed.area_m2;
       parsed.areaUnit = 'sqm';
+    }
+    // 구버전(frequency 문자열) → 방문 예정 요일 마이그레이션.
+    if (parsed.visitDays == null && parsed.frequency != null) {
+      parsed.visitDays = freqToVisitDays(parsed.frequency);
     }
     return { ...defaultPlantingInput, ...parsed };
   } catch {

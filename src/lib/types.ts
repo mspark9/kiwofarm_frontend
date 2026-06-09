@@ -22,8 +22,8 @@ export interface OnboardingInput {
   // returning-only
   budgetManwon?: number;
   facility?: FacilityType;
-  // weekend-only
-  visitFrequency?: VisitFrequency;
+  // weekend-only — 방문 예정 요일 (0=일 ~ 6=토). 주당 방문 횟수가 관리 가능 빈도.
+  visitDays?: number[];
 }
 
 // ───────────── Crop recommendation ─────────────

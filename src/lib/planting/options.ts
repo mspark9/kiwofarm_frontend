@@ -1,4 +1,4 @@
-import type { Experience, Place, StartWhen, SunHours } from '@/lib/api/planting';
+import type { Experience, Place, SunHours } from '@/lib/api/planting';
 
 // 입력 위저드 선택지(spec §3). label=UI 노출, value=백엔드 enum 값.
 
@@ -21,13 +21,6 @@ export const EXP_OPTIONS: { label: string; value: Experience }[] = [
   { label: '처음', value: '처음' },
   { label: '1~2년', value: '1~2년' },
   { label: '3년+', value: '3년+' },
-];
-
-export const FREQ_OPTIONS = ['매일', '주2~3회', '주말만'];
-
-export const START_OPTIONS: { label: string; value: StartWhen }[] = [
-  { label: '지금 바로', value: 'now' },
-  { label: '다음 달 계획', value: 'next_month' },
 ];
 
 export const FACILITY_OPTIONS = ['화분', '플랜터', '비닐터널', '미니온실'];
