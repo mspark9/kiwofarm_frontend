@@ -14,6 +14,7 @@ import {
   Box,
   Button,
   Card,
+  Collapse,
   Container,
   Divider,
   Group,
@@ -34,6 +35,7 @@ import {
   IconArrowLeft,
   IconCalendarPlus,
   IconCheck,
+  IconChevronDown,
   IconMapPin,
   IconPlus,
   IconSearch,
@@ -104,20 +106,6 @@ interface DraftValues {
   visitDays: number[];
 }
 
-// 추천받기 frequency('매일'·'주2~3회'·'주말만') → 방문 요일(0=일~6=토).
-function freqToVisitDays(freq: string | null | undefined): number[] {
-  switch (freq) {
-    case '매일':
-      return []; // 비우면 매일 가능
-    case '주2~3회':
-      return [3, 6]; // 수·토
-    case '주말만':
-      return [6, 0]; // 토·일
-    default:
-      return [6];
-  }
-}
-
 // 추천받기 sigungu("경기도 성남시") → province / city.
 function splitSigungu(sigungu: string): { province: string | null; city: string | null } {
   const s = sigungu.trim();
@@ -143,6 +131,8 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
     visitDays: [6], // 기본: 토요일
   }));
   const [queue, setQueue] = useState<CropEntry[]>([]);
+  // 추가된 작물 중 현재 펼쳐 편집 중인 작목 코드(없으면 null).
+  const [editKey, setEditKey] = useState<string | null>(null);
   // 추천받기에서 넘어온 재배 조건(생성 시 백엔드로 전달).
   const [growConditions, setGrowConditions] = useState<GrowConditions | null>(null);
 
@@ -171,11 +161,8 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
         next.area = input.area as number;
         next.areaUnit = input.areaUnit ?? 'pyeong';
       }
-      next.startDate =
-        input.start === 'next_month'
-          ? dayjs().add(1, 'month').startOf('month').toDate()
-          : new Date();
-      if (input.frequency) next.visitDays = freqToVisitDays(input.frequency);
+      next.startDate = input.startDate ? dayjs(input.startDate).toDate() : new Date();
+      if (input.visitDays?.length) next.visitDays = input.visitDays;
       setGrowConditions({
         place: input.place,
         sunHours: input.sun_hours,
@@ -217,12 +204,17 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
 
   const setDf = (patch: Partial<DraftValues>) => setDraft((d) => ({ ...d, ...patch }));
 
-  const validateDraft = (): string | null => {
-    if (!draft.startDate) return '시작 날짜를 선택하세요.';
-    if (!draft.province) return '지역(시·도)을 선택하세요.';
-    if (!(typeof draft.area === 'number' && draft.area > 0)) return '면적을 입력하세요.';
+  const validateValues = (v: DraftValues): string | null => {
+    if (!v.startDate) return '시작 날짜를 선택하세요.';
+    if (!v.province) return '지역(시·도)을 선택하세요.';
+    if (!(typeof v.area === 'number' && v.area > 0)) return '면적을 입력하세요.';
     return null;
   };
+  const validateDraft = (): string | null => validateValues(draft);
+
+  // 추가된 작물 한 칸의 세부정보를 인라인 수정.
+  const updateQueued = (key: string, patch: Partial<DraftValues>) =>
+    setQueue((q) => q.map((e) => (e.key === key ? { ...e, ...patch } : e)));
 
   const draftToEntry = (c: CropCatalogItem): CropEntry => ({
     key: cropEntryKey(c),
@@ -254,8 +246,10 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
     setCrop(null);
     notifications.show({ color: 'green', message: '작물을 추가했어요. 다음 작물을 선택하세요.' });
   };
-  const removeQueued = (key: string) =>
+  const removeQueued = (key: string) => {
     setQueue((q) => q.filter((e) => e.key !== key));
+    setEditKey((k) => (k === key ? null : k));
+  };
 
   const createMut = useMutation({
     // 1개면 단일 생성(해당 계획으로 이동), 2개 이상이면 배치 생성(모두 보기로 이동).
@@ -311,6 +305,15 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
     if (all.length === 0) {
       notifications.show({ color: 'red', message: '작목을 선택하거나 추가하세요.' });
       return;
+    }
+    // 인라인 편집으로 필수값이 비워졌을 수 있어 생성 전 각 작물을 검증한다.
+    for (const e of all) {
+      const err = validateValues(e);
+      if (err) {
+        notifications.show({ color: 'red', message: `${e.crop.name}: ${err}` });
+        setEditKey(e.key);
+        return;
+      }
     }
     const payloads: FarmPlanCreate[] = all.map((e) => ({
       startDate: dayjs(e.startDate).format(FMT),
@@ -382,131 +385,35 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
                   <Text size="sm" fw={700}>
                     추가된 작물 {queue.length}개
                   </Text>
+                  {growConditions && (
+                    <Alert
+                      color="grape"
+                      variant="light"
+                      radius="md"
+                      icon={<IconSparkles size={16} />}
+                      py={8}
+                    >
+                      추천받기에서 입력한 조건(지역·면적·시작 시기·재배 환경)을 자동으로 채웠어요. 필요하면
+                      수정할 수 있고, 일정 생성 시 재배 환경도 함께 고려됩니다.
+                    </Alert>
+                  )}
                   {queue.map((e) => (
-                    <QueuedCrop key={e.key} entry={e} onRemove={() => removeQueued(e.key)} />
+                    <QueuedCrop
+                      key={e.key}
+                      entry={e}
+                      expanded={editKey === e.key}
+                      onToggle={() => setEditKey((k) => (k === e.key ? null : e.key))}
+                      onChange={(patch) => updateQueued(e.key, patch)}
+                      onRemove={() => removeQueued(e.key)}
+                    />
                   ))}
                   <Divider my={4} label="다음 작물" labelPosition="center" />
                 </Stack>
               )}
 
-              {growConditions && (
-                <Alert
-                  color="green"
-                  variant="light"
-                  radius="md"
-                  icon={<IconSparkles size={16} />}
-                  py={8}
-                >
-                  추천받기에서 입력한 조건(지역·면적·시작 시기·재배 환경)을 자동으로 채웠어요. 필요하면
-                  수정할 수 있고, 일정 생성 시 재배 환경도 함께 고려됩니다.
-                </Alert>
-              )}
-
               <CropPicker value={crop} onChange={setCrop} />
 
-              <DatePickerInput
-                label="시작 날짜"
-                placeholder="재배 시작일 선택"
-                valueFormat="YYYY년 M월 D일"
-                withAsterisk
-                firstDayOfWeek={1}
-                monthLabelFormat="YYYY년 M월"
-                yearLabelFormat="YYYY년"
-                monthsListFormat="M월"
-                weekdayFormat={(date) => KOR_WEEKDAYS[date.getDay()]}
-                getDayProps={(date) => {
-                  const wd = dayjs(date).day(); // 0=일 ~ 6=토
-                  if (wd === 6) return { style: { color: 'var(--mantine-color-blue-6)' } };
-                  if (wd === 0) return { style: { color: 'var(--mantine-color-red-6)' } };
-                  return {};
-                }}
-                value={draft.startDate}
-                onChange={(v) => setDf({ startDate: v })}
-              />
-
-              <Group grow align="flex-start">
-                <Select
-                  label="지역 (시·도)"
-                  placeholder="선택"
-                  withAsterisk
-                  searchable
-                  data={PROVINCE_OPTIONS}
-                  leftSection={<IconMapPin size={16} />}
-                  value={draft.province}
-                  onChange={(v) => setDf({ province: v, city: null })}
-                />
-                <Select
-                  label="시·군·구"
-                  placeholder={draft.province ? '선택' : ''}
-                  searchable
-                  disabled={!draft.province}
-                  data={draft.province ? getCitiesByProvince(draft.province) : []}
-                  value={draft.city}
-                  onChange={(v) => setDf({ city: v })}
-                />
-              </Group>
-
-              <Box>
-                <Text size="sm" fw={500} mb={4}>
-                  농지 면적 <span style={{ color: 'var(--mantine-color-red-6)' }}>*</span>
-                </Text>
-                <Group gap="sm" align="flex-start" wrap="nowrap">
-                  <NumberInput
-                    flex={1}
-                    min={1}
-                    placeholder="면적"
-                    hideControls
-                    value={draft.area}
-                    onChange={(v) => setDf({ area: typeof v === 'number' ? v : '' })}
-                  />
-                  <SegmentedControl
-                    data={[
-                      { value: 'pyeong', label: '평' },
-                      { value: 'sqm', label: 'm²' },
-                      { value: 'hectare', label: 'ha' },
-                    ]}
-                    value={draft.areaUnit}
-                    onChange={(v) => setDf({ areaUnit: v as AreaUnit })}
-                  />
-                </Group>
-              </Box>
-
-              <Box>
-                <Text size="sm" fw={500} mb={4}>
-                  방문 요일
-                </Text>
-                <Text size="xs" c="dimmed" mb={8}>
-                  선택하면 단기 작업(파종·시비·방제 등)을 방문 요일에 맞춰 배치합니다. 비우면 매일 가능으로 처리.
-                </Text>
-                <Group grow gap="xs">
-                  {WEEKDAYS.map((w) => {
-                    const checked = draft.visitDays.includes(w.v);
-                    return (
-                      <Button
-                        key={w.v}
-                        size="sm"
-                        radius="xl"
-                        px={6}
-                        variant={checked ? 'filled' : 'default'}
-                        color="green"
-                        leftSection={checked ? <IconCheck size={12} /> : <IconX size={12} />}
-                        styles={{
-                          section: checked ? undefined : { color: 'var(--mantine-color-gray-5)' },
-                        }}
-                        onClick={() =>
-                          setDf({
-                            visitDays: checked
-                              ? draft.visitDays.filter((d) => d !== w.v)
-                              : [...draft.visitDays, w.v],
-                          })
-                        }
-                      >
-                        {w.l}
-                      </Button>
-                    );
-                  })}
-                </Group>
-              </Box>
+              <CropDetailFields values={draft} onChange={setDf} />
 
               <Stack gap="sm" mt={4}>
                 <Button
@@ -537,8 +444,20 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
   );
 }
 
-// 추가된(대기 중) 작물 한 줄 요약 — 작목 + 지역·면적·시작일·방문 요일.
-function QueuedCrop({ entry, onRemove }: { entry: CropEntry; onRemove: () => void }) {
+// 추가된(대기 중) 작물 한 줄 — 누르면 펼쳐서 세부정보(시작일·지역·면적·방문요일)를 인라인 수정.
+function QueuedCrop({
+  entry,
+  expanded,
+  onToggle,
+  onChange,
+  onRemove,
+}: {
+  entry: CropEntry;
+  expanded: boolean;
+  onToggle: () => void;
+  onChange: (patch: Partial<DraftValues>) => void;
+  onRemove: () => void;
+}) {
   const region = [entry.province, entry.city].filter(Boolean).join(' ') || '지역 미정';
   const visit = entry.visitDays.length
     ? `${[...entry.visitDays]
@@ -555,28 +474,168 @@ function QueuedCrop({ entry, onRemove }: { entry: CropEntry; onRemove: () => voi
       bg="green.0"
       style={{ borderColor: 'var(--mantine-color-green-2)' }}
     >
-      <Group justify="space-between" wrap="nowrap">
-        <Box style={{ minWidth: 0 }}>
-          <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
-            {entry.crop.category && (
-              <Badge color="green" variant="light" radius="sm" size="sm">
-                {entry.crop.category}
-              </Badge>
-            )}
-            <Text fw={700} fz={14} truncate>
-              {entry.crop.name}
-            </Text>
+      <Group justify="space-between" wrap="nowrap" gap="xs">
+        <UnstyledButton
+          onClick={onToggle}
+          style={{ flex: 1, minWidth: 0 }}
+          aria-label="세부정보 편집"
+        >
+          <Group justify="space-between" wrap="nowrap" gap="xs">
+            <Box style={{ minWidth: 0 }}>
+              <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+                {entry.crop.category && (
+                  <Badge color="green" variant="light" radius="sm" size="sm">
+                    {entry.crop.category}
+                  </Badge>
+                )}
+                <Text fw={700} fz={14} truncate>
+                  {entry.crop.name}
+                </Text>
+              </Group>
+              <Text size="xs" c="dimmed" mt={2} truncate>
+                {region} · {area} {AREA_UNIT_LABEL[entry.areaUnit]} ·{' '}
+                {dayjs(entry.startDate).format('M.D')} 시작 · {visit}
+              </Text>
+            </Box>
+            <IconChevronDown
+              size={16}
+              style={{
+                flexShrink: 0,
+                color: 'var(--mantine-color-gray-6)',
+                transform: expanded ? 'rotate(180deg)' : 'none',
+                transition: 'transform 160ms ease',
+              }}
+            />
           </Group>
-          <Text size="xs" c="dimmed" mt={2} truncate>
-            {region} · {area} {AREA_UNIT_LABEL[entry.areaUnit]} ·{' '}
-            {dayjs(entry.startDate).format('M.D')} 시작 · {visit}
-          </Text>
-        </Box>
+        </UnstyledButton>
         <ActionIcon variant="subtle" color="gray" onClick={onRemove} aria-label="추가 취소">
           <IconX size={16} />
         </ActionIcon>
       </Group>
+
+      <Collapse in={expanded}>
+        <Box pt="sm" mt="xs" style={{ borderTop: '1px solid var(--mantine-color-green-2)' }}>
+          <CropDetailFields values={entry} onChange={onChange} />
+        </Box>
+      </Collapse>
     </Card>
+  );
+}
+
+// 작물 한 건의 세부정보 입력 필드(시작일·지역·면적·방문요일). 메인 폼과 인라인 편집에서 공용.
+function CropDetailFields({
+  values,
+  onChange,
+}: {
+  values: DraftValues;
+  onChange: (patch: Partial<DraftValues>) => void;
+}) {
+  return (
+    <Stack gap="md">
+      <DatePickerInput
+        label="시작 날짜"
+        placeholder="재배 시작일 선택"
+        valueFormat="YYYY년 M월 D일"
+        withAsterisk
+        firstDayOfWeek={1}
+        monthLabelFormat="YYYY년 M월"
+        yearLabelFormat="YYYY년"
+        monthsListFormat="M월"
+        weekdayFormat={(date) => KOR_WEEKDAYS[date.getDay()]}
+        getDayProps={(date) => {
+          const wd = dayjs(date).day(); // 0=일 ~ 6=토
+          if (wd === 6) return { style: { color: 'var(--mantine-color-blue-6)' } };
+          if (wd === 0) return { style: { color: 'var(--mantine-color-red-6)' } };
+          return {};
+        }}
+        value={values.startDate}
+        onChange={(v) => onChange({ startDate: v })}
+      />
+
+      <Group grow align="flex-start">
+        <Select
+          label="지역 (시·도)"
+          placeholder="선택"
+          withAsterisk
+          searchable
+          data={PROVINCE_OPTIONS}
+          leftSection={<IconMapPin size={16} />}
+          value={values.province}
+          onChange={(v) => onChange({ province: v, city: null })}
+        />
+        <Select
+          label="시·군·구"
+          placeholder={values.province ? '선택' : ''}
+          searchable
+          disabled={!values.province}
+          data={values.province ? getCitiesByProvince(values.province) : []}
+          value={values.city}
+          onChange={(v) => onChange({ city: v })}
+        />
+      </Group>
+
+      <Box>
+        <Text size="sm" fw={500} mb={4}>
+          농지 면적 <span style={{ color: 'var(--mantine-color-red-6)' }}>*</span>
+        </Text>
+        <Group gap="sm" align="flex-start" wrap="nowrap">
+          <NumberInput
+            flex={1}
+            min={1}
+            placeholder="면적"
+            hideControls
+            value={values.area}
+            onChange={(v) => onChange({ area: typeof v === 'number' ? v : '' })}
+          />
+          <SegmentedControl
+            data={[
+              { value: 'pyeong', label: '평' },
+              { value: 'sqm', label: 'm²' },
+              { value: 'hectare', label: 'ha' },
+            ]}
+            value={values.areaUnit}
+            onChange={(v) => onChange({ areaUnit: v as AreaUnit })}
+          />
+        </Group>
+      </Box>
+
+      <Box>
+        <Text size="sm" fw={500} mb={4}>
+          방문 요일
+        </Text>
+        <Text size="xs" c="dimmed" mb={8}>
+          선택하면 단기 작업(파종·시비·방제 등)을 방문 요일에 맞춰 배치합니다. 비우면 매일 가능으로 처리.
+        </Text>
+        <Group grow gap="xs">
+          {WEEKDAYS.map((w) => {
+            const checked = values.visitDays.includes(w.v);
+            return (
+              <Button
+                key={w.v}
+                size="sm"
+                radius="xl"
+                px={6}
+                variant={checked ? 'filled' : 'default'}
+                color="green"
+                leftSection={checked ? <IconCheck size={12} /> : <IconX size={12} />}
+                styles={{
+                  section: checked ? undefined : { color: 'var(--mantine-color-gray-5)' },
+                }}
+                onClick={() =>
+                  onChange({
+                    visitDays: checked
+                      ? values.visitDays.filter((d) => d !== w.v)
+                      : [...values.visitDays, w.v],
+                  })
+                }
+              >
+                {w.l}
+              </Button>
+            );
+          })}
+        </Group>
+      </Box>
+    </Stack>
   );
 }
 

@@ -26,6 +26,6 @@ export function defaultOnboardingInput(mode: Mode): OnboardingInput {
     preferredCrops: [],
     ...(mode === 'returning'
       ? { budgetManwon: 3000, facility: 'vinyl_house' }
-      : { visitFrequency: 'weekly_1' }),
+      : { visitDays: [6] }),
   };
 }
