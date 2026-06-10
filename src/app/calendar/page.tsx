@@ -63,7 +63,6 @@ import {
   IconPencil,
   IconPhoto,
   IconPlus,
-  IconSearch,
   IconSparkles,
   IconTrash,
   IconX,
