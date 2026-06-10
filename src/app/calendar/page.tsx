@@ -417,15 +417,6 @@ function AllPlansView({
   const [hidden, setHidden] = useState<Set<number>>(() => new Set());
   // 삭제(하나씩) 모드 — 켜지면 각 행의 화살표 대신 휴지통이 나온다.
   const [deleteMode, setDeleteMode] = useState(false);
-  // 텃밭 이름(+작물명) 검색어.
-  const [search, setSearch] = useState('');
-  const filteredPlans = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return basePlans;
-    return basePlans.filter(({ plan }) =>
-      `${plan.name ?? ''} ${plan.cropName}`.toLowerCase().includes(q),
-    );
-  }, [basePlans, search]);
   // 삭제 확인 팝업.
   const [confirm, setConfirm] = useState<{
     title: string;
@@ -643,21 +634,7 @@ function AllPlansView({
                       </Button>
                     )}
                   </Group>
-                  <Stack gap={6}>
-                    <TextInput
-                        size="xs"
-                        placeholder="텃밭 이름 검색"
-                        leftSection={<IconSearch size={14} />}
-                        value={search}
-                        onChange={(e) => setSearch(e.currentTarget.value)}
-                        styles={{ input: { background: 'white' } }}
-                      />
-                      {filteredPlans.length === 0 ? (
-                        <Text size="sm" c="dimmed" ta="center" py="sm">
-                          검색 결과가 없습니다.
-                        </Text>
-                      ) : (
-                        filteredPlans.map(({ id, plan }) => {
+                  {basePlans.map(({ id, plan }) => {
                     const on = !hidden.has(id);
                     // 종료일 = 가장 늦은 작업 종료일(없으면 시작일). YYYY-MM-DD 문자열 비교로 충분.
                     let lastKey = plan.startDate;
@@ -747,9 +724,7 @@ function AllPlansView({
                         </Group>
                       </Card>
                     );
-                        })
-                      )}
-                  </Stack>
+                  })}
                 </Stack>
               )}
             </Stack>
