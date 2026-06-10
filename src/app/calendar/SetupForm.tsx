@@ -405,8 +405,7 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
                       icon={<IconSparkles size={16} />}
                       py={8}
                     >
-                      추천받기에서 입력한 조건(지역·면적·시작 시기·재배 환경)을 자동으로 채웠어요. 필요하면
-                      수정할 수 있고, 일정 생성 시 재배 환경도 함께 고려됩니다.
+                      추천받기에서 입력한 조건을 자동으로 채웠어요. 필요하면 수정할 수 있고, 일정 생성 시 재배 환경도 함께 고려됩니다.
                     </Alert>
                   )}
                   {queue.map((e) => (

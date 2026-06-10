@@ -643,7 +643,7 @@ function AllPlansView({
                     // 삭제 모드면 화살표 대신 휴지통(개별 삭제), 아니면 열기 화살표.
                     const rowAction = deleteMode ? (
                       <ActionIcon
-                        size="sm"
+                        size={isMobile ? 'md' : 'sm'}
                         variant="subtle"
                         color="red"
                         style={{ flexShrink: 0 }}
@@ -651,11 +651,11 @@ function AllPlansView({
                         onClick={() => onDelete(id, planName)}
                         aria-label={`${planName} 삭제`}
                       >
-                        <IconTrash size={16} />
+                        <IconTrash size={isMobile ? 18 : 16} />
                       </ActionIcon>
                     ) : (
                       <ActionIcon
-                        size="sm"
+                        size={isMobile ? 'md' : 'sm'}
                         variant="subtle"
                         color="green"
                         style={{ flexShrink: 0 }}
@@ -663,7 +663,7 @@ function AllPlansView({
                         href={`/calendar?planId=${id}`}
                         aria-label={`${planName} 열기`}
                       >
-                        <IconChevronRight size={16} />
+                        <IconChevronRight size={isMobile ? 22 : 16} />
                       </ActionIcon>
                     );
                     return (
@@ -685,20 +685,17 @@ function AllPlansView({
                               aria-label={`${planName} 표시`}
                             />
                             {isMobile ? (
-                              // 모바일
+                              // 모바일: 이름·날짜는 왼쪽, 화살표는 행 맨 오른쪽(아래에서 따로 배치).
                               <Box style={{ flex: 1, minWidth: 0 }}>
-                                <Group gap={4} wrap="nowrap" style={{ minWidth: 0 }}>
-                                  <UnstyledButton
-                                    onClick={() => toggle(id)}
-                                    style={{ minWidth: 0 }}
-                                    aria-label={`${planName} 표시 토글`}
-                                  >
-                                    <Text fw={600} truncate c={on ? undefined : 'dimmed'}>
-                                      {planName}
-                                    </Text>
-                                  </UnstyledButton>
-                                  {rowAction}
-                                </Group>
+                                <UnstyledButton
+                                  onClick={() => toggle(id)}
+                                  style={{ minWidth: 0, display: 'block', width: '100%' }}
+                                  aria-label={`${planName} 표시 토글`}
+                                >
+                                  <Text fw={600} truncate c={on ? undefined : 'dimmed'}>
+                                    {planName}
+                                  </Text>
+                                </UnstyledButton>
                                 <Text size="xs" c="dimmed" truncate>
                                   {period}
                                 </Text>
@@ -722,6 +719,7 @@ function AllPlansView({
                               </>
                             )}
                           </Group>
+                          {isMobile && rowAction}
                         </Group>
                       </Card>
                     );
@@ -2395,6 +2393,7 @@ function TaskRow({ task }: { task: FarmTask }) {
       radius="md"
       p="sm"
       withBorder
+      pos="relative"
       style={{
         borderColor: isDelayed
           ? 'var(--mantine-color-orange-3)'
@@ -2403,20 +2402,13 @@ function TaskRow({ task }: { task: FarmTask }) {
         opacity: isDone ? 0.6 : 1,
       }}
     >
-      <Box style={{ minWidth: 0 }}>
-        <Group gap={6} mb={2} wrap="wrap" align="baseline">
-          <Text fw={700} fz={14}>
-            {task.title}
-          </Text>
-          <Text size="xs" c={`${meta.color}.7`} fw={600}>
-            {meta.label}
-          </Text>
-          {isDone && (
+      {(isDone || isDelayed) && (
+        <Box pos="absolute" top={8} right={8} style={{ zIndex: 1 }}>
+          {isDone ? (
             <Badge size="xs" color="green" radius="sm" leftSection={<IconCheck size={10} />}>
               완료
             </Badge>
-          )}
-          {isDelayed && (
+          ) : (
             <Badge
               size="xs"
               color="orange"
@@ -2427,6 +2419,16 @@ function TaskRow({ task }: { task: FarmTask }) {
               지연
             </Badge>
           )}
+        </Box>
+      )}
+      <Box style={{ minWidth: 0 }}>
+        <Group gap={6} mb={2} wrap="wrap" align="baseline" pr={56}>
+          <Text fw={700} fz={14}>
+            {task.title}
+          </Text>
+          <Text size="xs" c={`${meta.color}.7`} fw={600}>
+            {meta.label}
+          </Text>
         </Group>
         {task.detail && (
           <Text size="xs" c="gray.7" mt={2} lh={1.5}>

@@ -207,9 +207,8 @@ export default function PlantingWizardPage() {
                     data={[
                       { value: 'pyeong', label: '평' },
                       { value: 'sqm', label: 'm²' },
-                      { value: 'hectare', label: 'ha' },
                     ]}
-                    value={form.values.areaUnit ?? 'pyeong'}
+                    value={form.values.areaUnit === 'hectare' ? 'pyeong' : form.values.areaUnit ?? 'pyeong'}
                     onChange={(v) => form.setFieldValue('areaUnit', v as AreaUnit)}
                   />
                 </Group>

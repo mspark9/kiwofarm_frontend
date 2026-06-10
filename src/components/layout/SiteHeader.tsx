@@ -240,6 +240,14 @@ export function SiteHeader() {
         html {
           scroll-behavior: smooth;
         }
+        /* 모바일·태블릿에서 Hero Grid의 음수 마진(gutter/2 > Container 패딩)이
+           뷰포트를 넘겨 생기던 가로 스크롤/떨림 차단. 모바일은 가로 스크롤이
+           html(뷰포트) 레벨에서 발생하므로 html·body 모두에 적용한다.
+           clip은 스크롤 컨테이너를 만들지 않아 sticky 헤더를 깨지 않는다. */
+        html,
+        body {
+          overflow-x: clip;
+        }
         .kw-feature-card {
           will-change: transform;
         }
