@@ -46,7 +46,7 @@ function Hero() {
   return (
     <Box style={{ background: 'linear-gradient(180deg, #f6fbf6 0%, #ffffff 72%)' }}>
       <Container size="xl" py={{ base: 56, md: 104 }}>
-        <Grid gutter={{ base: 48, md: 56 }} align="center">
+        <Grid gutter={{ base: 'xl', md: 56 }} align="center">
           <GridCol span={{ base: 12, md: 7 }}>
             <Stack gap="lg" align="flex-start">
               <Badge
@@ -890,20 +890,15 @@ function Footer() {
         <Group justify="space-between" wrap="wrap" gap="md" align="flex-start">
           <Stack gap={6}>
             <Group gap={8}>
-              <Box
-                w={26}
-                h={26}
-                style={{
-                  borderRadius: 7,
-                  background:
-                    'linear-gradient(135deg, var(--mantine-color-green-5), var(--mantine-color-teal-6))',
-                  display: 'grid',
-                  placeItems: 'center',
-                  color: 'white',
-                }}
-              >
-                <IconLeaf size={15} stroke={2.4} />
-              </Box>
+              {/* 헤더와 동일한 앱 아이콘 SVG(투명 배경) — 정적이라 일반 img. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/icons/app-icon.svg"
+                alt="키워팜"
+                width={28}
+                height={28}
+                style={{ display: 'block' }}
+              />
               <Text fw={800}>키워팜</Text>
             </Group>
             <Text size="xs" c="dimmed">
@@ -920,8 +915,8 @@ function Footer() {
             <Anchor component={Link} href="/calendar" size="sm" c="dimmed">
               텃밭 캘린더
             </Anchor>
-            <Anchor size="sm" c="dimmed" href="https://kiwofarm.com">
-              kiwofarm.com
+            <Anchor size="sm" c="dimmed" href="https://www.kiwofarm.store">
+              kiwofarm.store
             </Anchor>
           </Group>
         </Group>
