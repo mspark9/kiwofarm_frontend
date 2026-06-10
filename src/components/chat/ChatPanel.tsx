@@ -22,7 +22,7 @@ import {
   IconSparkles,
   IconUser,
 } from "@tabler/icons-react";
-import type { ChatContext, ChatMessage, ChatSource } from "@/lib/api/planting";
+import type { ChatContext, ChatMessage } from "@/lib/api/planting";
 import { fetchPlantingChat } from "@/lib/api/planting";
 import { AFTER_RECO_CHIPS, STARTER_CHIPS } from "@/lib/planting/options";
 import {
@@ -39,7 +39,7 @@ import { QuickReplyChips } from "@/components/planting/QuickReplyChips";
 export function ChatPanel({ style }: { style?: CSSProperties }) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [chips, setChips] = useState<string[]>(STARTER_CHIPS);
-  const [sources, setSources] = useState<ChatSource[]>([]);
+  const [dataSources, setDataSources] = useState<string[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [ready, setReady] = useState(false);
@@ -111,7 +111,7 @@ export function ChatPanel({ style }: { style?: CSSProperties }) {
       setMessages(after);
       saveChat(after);
       setChips(res.chips);
-      setSources(res.sources);
+      setDataSources(res.dataSources ?? []);
     } catch {
       const after: ChatMessage[] = [
         ...next,
@@ -131,7 +131,7 @@ export function ChatPanel({ style }: { style?: CSSProperties }) {
   const reset = () => {
     clearChat();
     setMessages([]);
-    setSources([]);
+    setDataSources([]);
     setChips(
       context?.recommendations?.length ? AFTER_RECO_CHIPS : STARTER_CHIPS,
     );
@@ -182,14 +182,14 @@ export function ChatPanel({ style }: { style?: CSSProperties }) {
         )}
       </Stack>
 
-      {sources.length > 0 && (
-        <Group gap={6}>
+      {dataSources.length > 0 && (
+        <Group gap={6} wrap="wrap">
           <Text size="xs" c="dimmed">
             출처:
           </Text>
-          {sources.map((s) => (
-            <Badge key={s.crop_id} size="xs" variant="light" color="green">
-              {s.name}
+          {dataSources.map((d) => (
+            <Badge key={d} size="xs" variant="light" color="teal">
+              {d}
             </Badge>
           ))}
         </Group>

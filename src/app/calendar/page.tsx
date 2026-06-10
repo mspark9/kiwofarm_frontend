@@ -383,8 +383,9 @@ function buildAllIndex(plans: LoadedPlan[]): Map<string, AllEntry[]> {
   return byDate;
 }
 
-// 계획 완료 판정: 모든 작업 완료 OR 마지막 작업(수확)일이 지남.
+// 계획 완료 판정: 수확 인증 완료 OR 모든 작업 완료 OR 마지막 작업(수확)일이 지남.
 function isPlanCompleted(plan: FarmPlan): boolean {
+  if (plan.harvested) return true; // 수확 인증되면 작업 상태와 무관하게 완료.
   if (plan.tasks.length === 0) return false;
   const allDone = plan.tasks.every((t) => t.status === 'done');
   let last = plan.startDate;
@@ -1168,14 +1169,19 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
       qc.invalidateQueries({ queryKey: ['rewards'] });
       qc.invalidateQueries({ queryKey: ['harvest'] });
     },
-    onError: (e) =>
-      notifications.show({
-        color: 'red',
-        message:
-          isAxiosError(e) && typeof e.response?.data?.detail === 'string'
-            ? e.response.data.detail
-            : '수확 인증 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.',
-      }),
+    onError: (e) => {
+      let message = '수확 인증 요청에 실패했습니다. 잠시 후 다시 시도해 주세요.';
+      if (isAxiosError(e)) {
+        if (e.code === 'ECONNABORTED') {
+          message = 'AI 분석이 오래 걸렸어요. 잠시 후 다시 시도해 주세요.';
+        } else if (e.response?.status === 503) {
+          message = 'AI 검증을 잠시 사용할 수 없어요. 잠시 후 다시 시도해 주세요.';
+        } else if (typeof e.response?.data?.detail === 'string') {
+          message = e.response.data.detail;
+        }
+      }
+      notifications.show({ color: 'red', message });
+    },
   });
 
   const visitValue =
@@ -1279,26 +1285,46 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
           )}
         </Box>
         <Stack gap={4} align="flex-end">
-          <Tooltip
-            label="기르는 동안 캘린더에 사진을 1장 이상 남겨야 인증할 수 있어요"
-            disabled={photoCount > 0}
-          >
-            <Button
-              color="orange"
-              radius="md"
-              leftSection={<IconBasket size={16} />}
-              loading={harvestMut.isPending}
-              disabled={photoCount === 0}
-              onClick={() => harvestMut.mutate()}
-            >
-              수확했어요
-            </Button>
-          </Tooltip>
-          <Text size="xs" c="dimmed">
-            {harvestMut.isPending
-              ? 'AI가 일지를 분석하고 있어요…'
-              : `기록 ${memoDays}일 · 사진 ${photoCount}장 분석`}
-          </Text>
+          {plan.harvested ? (
+            <>
+              <Button
+                component={Link}
+                href={`/collection?crop=${encodeURIComponent(plan.cropSlug ?? plan.cropName)}`}
+                color="orange"
+                variant="light"
+                radius="md"
+                leftSection={<IconBasket size={16} />}
+              >
+                수확 완료 · 도감 보기
+              </Button>
+              <Text size="xs" c="dimmed">
+                이 텃밭은 수확 인증을 마쳤어요
+              </Text>
+            </>
+          ) : (
+            <>
+              <Tooltip
+                label="기르는 동안 캘린더에 사진을 1장 이상 남겨야 인증할 수 있어요"
+                disabled={photoCount > 0}
+              >
+                <Button
+                  color="orange"
+                  radius="md"
+                  leftSection={<IconBasket size={16} />}
+                  loading={harvestMut.isPending}
+                  disabled={photoCount === 0 || harvestMut.isPending}
+                  onClick={() => harvestMut.mutate()}
+                >
+                  수확했어요
+                </Button>
+              </Tooltip>
+              <Text size="xs" c="dimmed">
+                {harvestMut.isPending
+                  ? 'AI가 일지를 분석하고 있어요…'
+                  : `기록 ${memoDays}일 · 사진 ${photoCount}장 분석`}
+              </Text>
+            </>
+          )}
         </Stack>
       </Group>
       <HarvestResultModal
@@ -1421,6 +1447,28 @@ function HarvestResultModal({
             </Box>
           )}
 
+          {!result.verified && result.missing.length > 0 && (
+            <Box
+              p="sm"
+              style={{
+                background: 'var(--mantine-color-gray-0)',
+                borderRadius: 8,
+                border: '1px solid var(--mantine-color-gray-2)',
+              }}
+            >
+              <Text size="sm" fw={700} mb={6}>
+                이렇게 하면 인증돼요
+              </Text>
+              <Stack gap={6}>
+                {result.missing.map((m, i) => (
+                  <Text key={i} size="sm" c="gray.7" style={{ lineHeight: 1.5 }}>
+                    {m}
+                  </Text>
+                ))}
+              </Stack>
+            </Box>
+          )}
+
           {result.verified ? (
             <Group justify="space-between" align="center">
               <Text size="sm" c="dimmed">
@@ -1428,7 +1476,7 @@ function HarvestResultModal({
               </Text>
               <Button
                 component={Link}
-                href={`/collection?crop=${encodeURIComponent(cropName)}`}
+                href={`/collection?crop=${encodeURIComponent(result.card?.cropSlug ?? cropName)}`}
                 color="orange"
                 radius="md"
                 leftSection={<IconSparkles size={16} />}

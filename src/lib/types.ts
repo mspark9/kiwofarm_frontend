@@ -235,6 +235,7 @@ export interface FarmPlan {
   cropItemCode: string;
   cropKindCode: string;
   cropName: string;
+  cropSlug?: string | null; // 도감 slug(40종) — 도감 딥링크용.
   region: string;
   province?: string | null;
   area: number;
@@ -242,6 +243,8 @@ export interface FarmPlan {
   visitFrequency?: string | null;
   visitDays?: number[] | null;
   trackProgress: boolean;
+  // 검증된 수확 인증이 있으면 true → 캘린더에서 '완료'로 분류.
+  harvested: boolean;
   tasks: FarmTask[];
   memos: TaskMemo[];
 }
@@ -447,6 +450,8 @@ export interface HarvestJournalResponse {
   newBadges: BadgeOut[];
   pointsTotal: number;
   message: string;
+  // 실패 시 부족한 점·다음 행동 안내(통과면 빈 배열).
+  missing: string[];
 }
 
 // ───────────── 주간 다이제스트 · 위기 알림 (캘린더) ─────────────
