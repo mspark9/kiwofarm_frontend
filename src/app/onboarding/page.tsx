@@ -380,12 +380,11 @@ function ConditionForm({
               />
               <SegmentedControl
                 size="xs"
-                value={form.values.areaUnit}
+                value={form.values.areaUnit === 'hectare' ? 'pyeong' : form.values.areaUnit}
                 onChange={(v) => form.setFieldValue('areaUnit', v as AreaUnit)}
                 data={[
                   { label: '평', value: 'pyeong' },
                   { label: '㎡', value: 'sqm' },
-                  { label: 'ha', value: 'hectare' },
                 ]}
               />
             </Group>
