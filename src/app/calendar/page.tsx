@@ -417,8 +417,6 @@ function AllPlansView({
   const [hidden, setHidden] = useState<Set<number>>(() => new Set());
   // 삭제(하나씩) 모드 — 켜지면 각 행의 화살표 대신 휴지통이 나온다.
   const [deleteMode, setDeleteMode] = useState(false);
-  // 목록 펼치기/접기.
-  const [listOpen, setListOpen] = useState(true);
   // 텃밭 이름(+작물명) 검색어.
   const [search, setSearch] = useState('');
   const filteredPlans = useMemo(() => {
@@ -612,7 +610,6 @@ function AllPlansView({
                       label="전체 선택"
                       styles={{ label: { fontWeight: 600 } }}
                     />
-                    <Group gap={6} wrap="nowrap">
                     {deleteMode ? (
                       <Group gap={6} wrap="nowrap">
                         <Button
@@ -645,26 +642,9 @@ function AllPlansView({
                         삭제
                       </Button>
                     )}
-                    <ActionIcon
-                      size="sm"
-                      variant="subtle"
-                      color="gray"
-                      onClick={() => setListOpen((v) => !v)}
-                      aria-label="목록 펼치기/접기"
-                    >
-                      <IconChevronDown
-                        size={16}
-                        style={{
-                          transform: listOpen ? 'none' : 'rotate(-90deg)',
-                          transition: 'transform 160ms ease',
-                        }}
-                      />
-                    </ActionIcon>
-                    </Group>
                   </Group>
-                  <Collapse in={listOpen}>
-                    <Stack gap={6}>
-                      <TextInput
+                  <Stack gap={6}>
+                    <TextInput
                         size="xs"
                         placeholder="텃밭 이름 검색"
                         leftSection={<IconSearch size={14} />}
@@ -769,8 +749,7 @@ function AllPlansView({
                     );
                         })
                       )}
-                    </Stack>
-                  </Collapse>
+                  </Stack>
                 </Stack>
               )}
             </Stack>
