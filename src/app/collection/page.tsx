@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import dayjs from 'dayjs';
 import {
   ActionIcon,
   Anchor,
@@ -91,8 +92,10 @@ function categoryProgress(
 
 function fmtDate(iso?: string | null): string {
   if (!iso) return '';
-  const d = new Date(iso);
-  return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+  // 'YYYY-MM-DD' 를 new Date() 로 파싱하면 UTC 자정 → 로컬에서 하루 밀릴 수 있다.
+  // dayjs 로 로컬 기준 파싱해 날짜 오프바이원을 막는다.
+  const d = dayjs(iso);
+  return `${d.month() + 1}월 ${d.date()}일`;
 }
 
 export default function CollectionPage() {

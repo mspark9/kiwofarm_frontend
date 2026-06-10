@@ -51,6 +51,7 @@ import {
 import { fetchCropJournal, fetchRewardsSummary } from '@/lib/api/rewards';
 import { cropEmoji } from '@/lib/cropEmoji';
 import { mediaUrl } from '@/lib/constants';
+import { getAuthNickname } from '@/lib/auth';
 import { getNickname, setNickname } from '@/lib/nickname';
 import type {
   CommunityPostDetail,
@@ -324,7 +325,7 @@ function PostCard({ post, onOpen }: { post: CommunityPostListItem; onOpen: () =>
             style={{ cursor: 'pointer' }}
             onClick={(e) => {
               e.stopPropagation();
-              like.mutate();
+              if (!like.isPending) like.mutate();
             }}
           >
             {post.likedByMe ? (
@@ -359,6 +360,8 @@ function PostCard({ post, onOpen }: { post: CommunityPostListItem; onOpen: () =>
 function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const qc = useQueryClient();
   const [nickname, setNick] = useState('');
+  // 로그인 사용자는 회원가입 닉네임 고정(입력칸 숨김), 게스트만 직접 입력.
+  const [isGuest, setIsGuest] = useState(true);
   const [type, setType] = useState<PostType>('show');
   const [cropSlug, setCropSlug] = useState<string | null>(null);
   const [content, setContent] = useState('');
@@ -368,7 +371,9 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
   // 열릴 때 닉네임 프리필 + 폼 초기화.
   useEffect(() => {
     if (opened) {
-      setNick(getNickname());
+      const authNick = getAuthNickname();
+      setIsGuest(!authNick);
+      setNick(authNick ?? getNickname());
       setType('show');
       setCropSlug(null);
       setContent('');
@@ -413,7 +418,8 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
         fromMemoImageIds: pickedMemoIds,
       }),
     onSuccess: () => {
-      setNickname(nickname);
+      // 게스트가 직접 입력한 이름만 기억(로그인 사용자는 회원가입 닉네임 고정).
+      if (isGuest) setNickname(nickname);
       qc.invalidateQueries({ queryKey: ['community', 'posts'] });
       notifications.show({ color: 'green', message: '글을 올렸어요.' });
       onClose();
@@ -441,14 +447,23 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
           ]}
         />
 
-        <TextInput
-          label="닉네임"
-          placeholder="피드에 표시될 이름"
-          value={nickname}
-          maxLength={40}
-          onChange={(e) => setNick(e.currentTarget.value)}
-          leftSection={<IconUserCircle size={16} />}
-        />
+        {isGuest ? (
+          <TextInput
+            label="닉네임"
+            placeholder="피드에 표시될 이름"
+            value={nickname}
+            maxLength={40}
+            onChange={(e) => setNick(e.currentTarget.value)}
+            leftSection={<IconUserCircle size={16} />}
+          />
+        ) : (
+          <Text size="sm" c="dimmed">
+            <Text component="span" fw={600} c="green.7">
+              {nickname}
+            </Text>{' '}
+            님으로 작성돼요.
+          </Text>
+        )}
 
         <Select
           label="작물 태그 (선택)"
@@ -719,6 +734,7 @@ function DetailBody({
           radius="xl"
           size="sm"
           leftSection={post.likedByMe ? <IconHeartFilled size={16} /> : <IconHeart size={16} />}
+          disabled={like.isPending}
           onClick={() => like.mutate()}
         >
           좋아요 {post.likeCount}
@@ -842,7 +858,11 @@ function DetailBody({
           value={commentText}
           onChange={(e) => setCommentText(e.currentTarget.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' && commentText.trim()) comment.mutate();
+            // IME(한글) 조합 중 Enter 는 무시 — 반쪽 메시지 전송 방지.
+            if (e.nativeEvent.isComposing) return;
+            if (e.key === 'Enter' && commentText.trim() && !comment.isPending) {
+              comment.mutate();
+            }
           }}
         />
         <Button

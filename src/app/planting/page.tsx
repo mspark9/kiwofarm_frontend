@@ -55,6 +55,7 @@ import {
   savePlantingInput,
 } from '@/lib/planting/storage';
 import { RegionPicker } from '@/components/shared/RegionPicker';
+import { getAddress } from '@/lib/auth';
 
 // 0=일 ~ 6=토. 표시는 월~일 순. 방문 예정 요일 선택용.
 const WEEKDAYS: { v: number; l: string }[] = [
@@ -84,7 +85,8 @@ export default function PlantingWizardPage() {
   const router = useRouter();
   const isMobile = useMediaQuery('(max-width: 48em)');
   const saved = loadPlantingInput();
-  const initRegion = splitSigungu(saved?.sigungu ?? '');
+  // 지역 프리필 우선순위: 직전 추천 입력(sigungu) → 회원가입 주소 → 빈값.
+  const initRegion = splitSigungu(saved?.sigungu || getAddress() || '');
 
   const [province, setProvince] = useState(initRegion.province);
   const [city, setCity] = useState(initRegion.city);

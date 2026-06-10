@@ -1159,7 +1159,15 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
 
   const harvestMut = useMutation({
     mutationFn: () => verifyHarvestJournal(plan.id),
-    onSuccess: setHarvestResult,
+    onSuccess: (res) => {
+      setHarvestResult(res);
+      // 수확 인증은 도감·점수·뱃지·계획 완료상태를 바꾼다 — 관련 캐시 무효화로
+      // 모달이 바로 보내는 /collection 등이 stale 데이터를 보이지 않게 한다.
+      qc.invalidateQueries({ queryKey: ['farmplan', plan.id] });
+      qc.invalidateQueries({ queryKey: ['plans', 'list'] });
+      qc.invalidateQueries({ queryKey: ['rewards'] });
+      qc.invalidateQueries({ queryKey: ['harvest'] });
+    },
     onError: (e) =>
       notifications.show({
         color: 'red',

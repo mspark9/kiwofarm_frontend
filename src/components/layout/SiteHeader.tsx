@@ -21,6 +21,7 @@ import {
 } from "@mantine/core";
 import { isAxiosError } from "axios";
 import { ChatPanel } from "@/components/chat/ChatPanel";
+import { RegionPicker } from "@/components/shared/RegionPicker";
 import { clearAuth, getUsername, login, signup } from "@/lib/auth";
 import {
   IconBook2,
@@ -425,6 +426,10 @@ function LoginModal({
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
+  const [nickname, setNickname] = useState("");
+  // 주소(선택) — 시·군·구까지. 미선택이면 city 빈 문자열 → 주소 없이 가입.
+  const [province, setProvince] = useState("경기도");
+  const [city, setCity] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -432,10 +437,14 @@ function LoginModal({
     setError(null);
     setLoading(true);
     try {
-      if (mode === "signup") await signup(userId.trim(), password);
-      else await login(userId.trim(), password);
-      // 계정 데이터로 전환 — 게스트(공용 데모) 화면 상태를 비우기 위해 새로고침
-      window.location.href = "/calendar";
+      if (mode === "signup") {
+        const address = city ? `${province} ${city}` : null;
+        await signup(userId.trim(), password, nickname.trim(), address);
+      } else {
+        await login(userId.trim(), password);
+      }
+      // 계정 데이터로 전환 — 게스트(공용 데모) 화면 상태를 비우기 위해 시작 페이지로.
+      window.location.href = "/";
     } catch (e) {
       const detail =
         isAxiosError(e) && typeof e.response?.data?.detail === "string"
@@ -500,6 +509,37 @@ function LoginModal({
               if (e.key === "Enter") void submit();
             }}
           />
+          {mode === "signup" && (
+            <>
+              <TextInput
+                label="닉네임"
+                placeholder="커뮤니티에 표시될 이름"
+                value={nickname}
+                maxLength={40}
+                onChange={(e) => setNickname(e.currentTarget.value)}
+                leftSection={<IconUserCircle size={16} />}
+              />
+              <Box>
+                <Text size="sm" fw={500} mb={4}>
+                  주소{" "}
+                  <Text component="span" size="xs" c="dimmed">
+                    (선택 · 시·군·구까지)
+                  </Text>
+                </Text>
+                <RegionPicker
+                  value={city}
+                  province={province}
+                  onChange={(nextCity, nextProvince) => {
+                    setCity(nextCity);
+                    setProvince(nextProvince);
+                  }}
+                />
+                <Text size="xs" c="dimmed" mt={4}>
+                  입력하면 작목 추천 시 지역이 자동으로 채워져요.
+                </Text>
+              </Box>
+            </>
+          )}
         </Stack>
         {error && (
           <Alert color="red" radius="md" variant="light">
@@ -510,7 +550,11 @@ function LoginModal({
           color="green"
           size="md"
           loading={loading}
-          disabled={!userId.trim() || !password}
+          disabled={
+            !userId.trim() ||
+            !password ||
+            (mode === "signup" && !nickname.trim())
+          }
           onClick={() => void submit()}
         >
           {mode === "login" ? "로그인" : "가입하기"}
