@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActionIcon,
+  Alert,
   Badge,
   Box,
   Button,
@@ -12,6 +13,7 @@ import {
   FileButton,
   Group,
   Modal,
+  NumberInput,
   SegmentedControl,
   Select,
   SimpleGrid,
@@ -24,9 +26,13 @@ import {
   Title,
   Tooltip,
 } from '@mantine/core';
+import { DateTimePicker } from '@mantine/dates';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
+import { isAxiosError } from 'axios';
 import {
+  IconClock,
+  IconGavel,
   IconGift,
   IconHeart,
   IconHeartFilled,
@@ -44,9 +50,9 @@ import {
   deletePost,
   fetchPost,
   fetchPosts,
-  requestShare,
+  fetchWallet,
+  placeBid,
   toggleLike,
-  updateShareRequest,
 } from '@/lib/api/community';
 import { fetchCropJournal, fetchRewardsSummary } from '@/lib/api/rewards';
 import { cropEmoji } from '@/lib/cropEmoji';
@@ -58,7 +64,6 @@ import type {
   CommunityPostListItem,
   MemoImage,
   PostType,
-  ShareRequestStatus,
 } from '@/lib/types';
 
 type FilterMode = 'all' | 'show' | 'share';
@@ -89,9 +94,16 @@ function CommunityRoot() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
+  const loggedIn = !!getAuthNickname();
   const posts = useQuery({
     queryKey: ['community', 'posts', filter],
     queryFn: () => fetchPosts(filter === 'all' ? undefined : { type: filter }),
+    staleTime: 15_000,
+  });
+  const wallet = useQuery({
+    queryKey: ['community', 'wallet'],
+    queryFn: fetchWallet,
+    enabled: loggedIn,
     staleTime: 15_000,
   });
 
@@ -109,14 +121,30 @@ function CommunityRoot() {
               자랑·나눔
             </Text>
           </Title>
-          <Button
-            color="green"
-            radius="md"
-            leftSection={<IconPlus size={16} />}
-            onClick={() => setComposerOpen(true)}
-          >
-            글쓰기
-          </Button>
+          <Group gap="sm">
+            {loggedIn && wallet.data && (
+              <Badge
+                size="lg"
+                radius="md"
+                color="orange"
+                variant="light"
+                leftSection={<IconGavel size={14} />}
+              >
+                내 포인트 {wallet.data.available.toLocaleString()}P
+                {wallet.data.available !== wallet.data.balance
+                  ? ` (보유 ${wallet.data.balance.toLocaleString()})`
+                  : ''}
+              </Badge>
+            )}
+            <Button
+              color="green"
+              radius="md"
+              leftSection={<IconPlus size={16} />}
+              onClick={() => setComposerOpen(true)}
+            >
+              글쓰기
+            </Button>
+          </Group>
         </Group>
         <Text c="dimmed" size="sm" mt={6}>
           내가 키운 수확물을 자랑하고, 남는 작물은 이웃과 나눠요.
@@ -130,8 +158,8 @@ function CommunityRoot() {
         onChange={(v) => setFilter(v as FilterMode)}
         data={[
           { label: '전체', value: 'all' },
-          { label: '🌟 자랑', value: 'show' },
-          { label: '🎁 나눔', value: 'share' },
+          { label: '자랑', value: 'show' },
+          { label: '나눔', value: 'share' },
         ]}
       />
 
@@ -343,11 +371,15 @@ function PostCard({ post, onOpen }: { post: CommunityPostListItem; onOpen: () =>
               {post.commentCount}
             </Text>
           </Group>
-          {post.postType === 'share' && (
+          {post.postType === 'share' && post.auction && (
             <Group gap={4} wrap="nowrap">
-              <IconGift size={18} color="var(--mantine-color-orange-6)" />
-              <Text size="sm" c="dimmed" fw={600}>
-                신청 {post.shareRequestCount}
+              <IconGavel size={18} color="var(--mantine-color-orange-6)" />
+              <Text size="sm" c="orange.7" fw={700}>
+                {post.auction.closed
+                  ? '마감'
+                  : post.auction.topBid != null
+                    ? `${post.auction.topBid}P`
+                    : '입찰 대기'}
               </Text>
             </Group>
           )}
@@ -367,6 +399,7 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
   const [content, setContent] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [pickedMemoIds, setPickedMemoIds] = useState<number[]>([]);
+  const [deadline, setDeadline] = useState<Date | null>(null);
 
   // 열릴 때 닉네임 프리필 + 폼 초기화.
   useEffect(() => {
@@ -375,6 +408,7 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
       setIsGuest(!authNick);
       setNick(authNick ?? getNickname());
       setType('show');
+      setDeadline(null);
       setCropSlug(null);
       setContent('');
       setFiles([]);
@@ -416,6 +450,8 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
         cropName,
         files,
         fromMemoImageIds: pickedMemoIds,
+        auctionDeadline:
+          type === 'share' && deadline ? deadline.toISOString() : null,
       }),
     onSuccess: () => {
       // 게스트가 직접 입력한 이름만 기억(로그인 사용자는 회원가입 닉네임 고정).
@@ -424,15 +460,20 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
       notifications.show({ color: 'green', message: '글을 올렸어요.' });
       onClose();
     },
-    onError: () => {
+    onError: (e) => {
       notifications.show({
         color: 'red',
-        message: '등록에 실패했어요. 사진 형식(jpg·png·webp)과 용량을 확인해 주세요.',
+        message:
+          isAxiosError(e) && typeof e.response?.data?.detail === 'string'
+            ? e.response.data.detail
+            : '등록에 실패했어요. 사진 형식(jpg·png·webp)과 용량을 확인해 주세요.',
       });
     },
   });
 
-  const canSubmit = content.trim().length > 0 && nickname.trim().length > 0;
+  const shareReady = type === 'show' || (!isGuest && !!deadline);
+  const canSubmit =
+    content.trim().length > 0 && nickname.trim().length > 0 && shareReady;
 
   return (
     <Modal opened={opened} onClose={onClose} title={<Text fw={800}>글쓰기</Text>} size="lg" radius="lg" centered>
@@ -442,8 +483,8 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
           value={type}
           onChange={(v) => setType(v as PostType)}
           data={[
-            { label: '🌟 자랑하기', value: 'show' },
-            { label: '🎁 나눔하기', value: 'share' },
+            { label: '자랑하기', value: 'show' },
+            { label: '나눔하기', value: 'share' },
           ]}
         />
 
@@ -492,6 +533,27 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
           value={content}
           onChange={(e) => setContent(e.currentTarget.value)}
         />
+
+        {type === 'share' &&
+          (isGuest ? (
+            <Alert color="orange" variant="light" radius="md" icon={<IconGift size={16} />}>
+              나눔(포인트 경매)은 로그인 후 이용할 수 있어요.
+            </Alert>
+          ) : (
+            <Box>
+              <DateTimePicker
+                label="나눔 마감 시간"
+                description="이 시간까지 이웃들이 활동포인트로 경매해요. 최고가 낙찰!"
+                placeholder="마감 일시 선택"
+                value={deadline}
+                onChange={(v) => setDeadline(v ? new Date(v) : null)}
+                minDate={new Date()}
+                valueFormat="M월 D일 HH:mm"
+                clearable
+                leftSection={<IconClock size={16} />}
+              />
+            </Box>
+          ))}
 
         {/* 사진 업로드 */}
         <Box>
@@ -641,7 +703,6 @@ function DetailBody({
 }) {
   const qc = useQueryClient();
   const [commentText, setCommentText] = useState('');
-  const [shareMsg, setShareMsg] = useState('');
 
   const like = useMutation({
     mutationFn: () => toggleLike(post.id),
@@ -655,22 +716,6 @@ function DetailBody({
       onChanged();
     },
   });
-  const share = useMutation({
-    mutationFn: () =>
-      requestShare(post.id, { requesterName: getNickname() || '텃밭러', message: shareMsg }),
-    onSuccess: () => {
-      setShareMsg('');
-      onChanged();
-      notifications.show({ color: 'green', message: '나눔을 신청했어요.' });
-    },
-    onError: () =>
-      notifications.show({ color: 'red', message: '신청에 실패했어요. 잠시 후 다시 시도해 주세요.' }),
-  });
-  const reqAction = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: ShareRequestStatus }) =>
-      updateShareRequest(id, status),
-    onSuccess: onChanged,
-  });
   const remove = useMutation({
     mutationFn: () => deletePost(post.id),
     onSuccess: () => {
@@ -679,8 +724,6 @@ function DetailBody({
       onDeleted();
     },
   });
-
-  const myPendingRequest = post.shareRequests.find((r) => r.isMine);
 
   return (
     <Stack gap="md">
@@ -741,83 +784,9 @@ function DetailBody({
         </Button>
       </Group>
 
-      {/* 나눔 신청 영역 */}
-      {post.postType === 'share' && (
-        <Card radius="md" p="md" withBorder bg="orange.0" style={{ borderColor: 'var(--mantine-color-orange-2)' }}>
-          <Group gap={6} mb={8}>
-            <IconGift size={18} color="var(--mantine-color-orange-7)" />
-            <Text fw={700} size="sm" c="orange.9">
-              나눔 신청
-            </Text>
-          </Group>
-          {post.isMine ? (
-            post.shareRequests.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                아직 신청이 없어요.
-              </Text>
-            ) : (
-              <Stack gap="xs">
-                {post.shareRequests.map((r) => (
-                  <Group key={r.id} justify="space-between" wrap="nowrap" align="flex-start">
-                    <Box style={{ flex: 1 }}>
-                      <Group gap={6}>
-                        <Text fw={600} size="sm">
-                          {r.requesterName}
-                        </Text>
-                        <ShareStatusBadge status={r.status} />
-                      </Group>
-                      <Text size="sm" c="gray.7">
-                        {r.message}
-                      </Text>
-                    </Box>
-                    {r.status === 'pending' && (
-                      <Group gap={4} wrap="nowrap">
-                        <Button
-                          size="xs"
-                          color="green"
-                          onClick={() => reqAction.mutate({ id: r.id, status: 'accepted' })}
-                        >
-                          수락
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="default"
-                          onClick={() => reqAction.mutate({ id: r.id, status: 'declined' })}
-                        >
-                          거절
-                        </Button>
-                      </Group>
-                    )}
-                  </Group>
-                ))}
-              </Stack>
-            )
-          ) : myPendingRequest ? (
-            <Group gap={6}>
-              <Text size="sm" c="gray.7">
-                신청 완료
-              </Text>
-              <ShareStatusBadge status={myPendingRequest.status} />
-            </Group>
-          ) : (
-            <Group gap="xs" wrap="nowrap" align="flex-end">
-              <TextInput
-                style={{ flex: 1 }}
-                placeholder="나눔 신청 메시지"
-                value={shareMsg}
-                onChange={(e) => setShareMsg(e.currentTarget.value)}
-              />
-              <Button
-                color="orange"
-                disabled={!shareMsg.trim()}
-                loading={share.isPending}
-                onClick={() => share.mutate()}
-              >
-                신청
-              </Button>
-            </Group>
-          )}
-        </Card>
+      {/* 나눔 포인트 경매 */}
+      {post.postType === 'share' && post.auction && (
+        <AuctionPanel post={post} onChanged={onChanged} />
       )}
 
       <Divider label={`댓글 ${post.comments.length}`} labelPosition="left" />
@@ -878,16 +847,159 @@ function DetailBody({
   );
 }
 
-function ShareStatusBadge({ status }: { status: ShareRequestStatus }) {
-  const map: Record<ShareRequestStatus, { c: string; label: string }> = {
-    pending: { c: 'gray', label: '대기' },
-    accepted: { c: 'green', label: '수락됨' },
-    declined: { c: 'red', label: '거절됨' },
-  };
-  const m = map[status];
+// 나눔 포인트 경매 패널 — 현재 최고가·마감·입찰·낙찰 결과.
+function AuctionPanel({
+  post,
+  onChanged,
+}: {
+  post: CommunityPostDetail;
+  onChanged: () => void;
+}) {
+  const qc = useQueryClient();
+  const a = post.auction!;
+  const loggedIn = !!getAuthNickname();
+  const minBid = (a.topBid ?? 0) + 1;
+  const [amount, setAmount] = useState<number | ''>(minBid);
+  useEffect(() => {
+    setAmount((a.topBid ?? 0) + 1);
+  }, [a.topBid]);
+
+  const bid = useMutation({
+    mutationFn: () =>
+      placeBid(post.id, {
+        bidderName: getNickname() || '텃밭러',
+        amount: Number(amount),
+      }),
+    onSuccess: () => {
+      onChanged();
+      qc.invalidateQueries({ queryKey: ['community', 'posts'] });
+      qc.invalidateQueries({ queryKey: ['community', 'wallet'] });
+      notifications.show({ color: 'green', message: '입찰했어요!' });
+    },
+    onError: (e) =>
+      notifications.show({
+        color: 'red',
+        message:
+          isAxiosError(e) && typeof e.response?.data?.detail === 'string'
+            ? e.response.data.detail
+            : '입찰에 실패했어요.',
+      }),
+  });
+
   return (
-    <Badge size="sm" color={m.c} variant="light" radius="sm">
-      {m.label}
-    </Badge>
+    <Card
+      radius="md"
+      p="md"
+      withBorder
+      bg="orange.0"
+      style={{ borderColor: 'var(--mantine-color-orange-2)' }}
+    >
+      <Group gap={6} mb={8}>
+        <IconGavel size={18} color="var(--mantine-color-orange-7)" />
+        <Text fw={700} size="sm" c="orange.9">
+          포인트 경매
+        </Text>
+        {a.closed && (
+          <Badge size="sm" color="gray" variant="light" radius="sm">
+            마감
+          </Badge>
+        )}
+      </Group>
+
+      <Group justify="space-between" mb={8} wrap="nowrap">
+        <Text size="xs" c="gray.7">
+          {a.closed ? '마감됨' : '마감'} · {fmtWhen(a.deadline)}
+        </Text>
+        <Text size="sm" fw={700} c="orange.8">
+          현재 최고 {a.topBid != null ? `${a.topBid}P` : '입찰 없음'}
+          {a.topBidderName ? ` · ${a.topBidderName}` : ''}
+        </Text>
+      </Group>
+
+      {a.closed ? (
+        <Alert
+          color={a.settled && a.topBid ? 'green' : 'gray'}
+          variant="light"
+          radius="md"
+        >
+          {!a.topBid
+            ? '입찰이 없어 유찰됐어요.'
+            : a.winnerIsMe
+              ? `🎉 내가 ${a.topBid}P로 낙찰받았어요!`
+              : a.iAmSeller
+                ? `${a.topBid}P에 낙찰됐어요. (+${a.topBid}P 획득)`
+                : `${a.topBidderName ?? '누군가'} 님이 ${a.topBid}P로 낙찰받았어요.`}
+        </Alert>
+      ) : a.iAmSeller ? (
+        <Text size="sm" c="dimmed">
+          내 나눔글이에요. 마감 시 최고가가 자동으로 낙찰됩니다.
+        </Text>
+      ) : !loggedIn ? (
+        <Alert color="orange" variant="light" radius="md">
+          로그인 후 활동포인트로 입찰할 수 있어요.
+        </Alert>
+      ) : (
+        <Stack gap={6}>
+          <Text size="xs" c="dimmed">
+            내 사용가능 포인트 <b>{a.myAvailable}P</b> · 최소 입찰 {minBid}P
+          </Text>
+          <Group gap="xs" wrap="nowrap" align="flex-end">
+            <NumberInput
+              style={{ flex: 1 }}
+              min={minBid}
+              max={a.myAvailable}
+              value={amount}
+              onChange={(v) => setAmount(typeof v === 'number' ? v : '')}
+              suffix="P"
+              hideControls
+            />
+            <Button
+              color="orange"
+              leftSection={<IconGavel size={16} />}
+              loading={bid.isPending}
+              disabled={
+                typeof amount !== 'number' ||
+                amount < minBid ||
+                amount > a.myAvailable
+              }
+              onClick={() => bid.mutate()}
+            >
+              입찰
+            </Button>
+          </Group>
+          {a.myBid != null && (
+            <Text size="xs" c="orange.7">
+              내 현재 입찰 {a.myBid}P
+            </Text>
+          )}
+        </Stack>
+      )}
+
+      {post.bids.length > 0 && (
+        <>
+          <Divider my={8} />
+          <Text size="xs" c="dimmed" mb={4}>
+            입찰 내역 {post.bids.length}건
+          </Text>
+          <Stack gap={2}>
+            {post.bids.slice(0, 8).map((b) => (
+              <Group key={b.id} justify="space-between">
+                <Text
+                  size="xs"
+                  c={b.isMine ? 'orange.8' : 'gray.7'}
+                  fw={b.isMine ? 700 : 400}
+                >
+                  {b.bidderName}
+                  {b.isMine ? ' (나)' : ''}
+                </Text>
+                <Text size="xs" fw={600}>
+                  {b.amount}P
+                </Text>
+              </Group>
+            ))}
+          </Stack>
+        </>
+      )}
+    </Card>
   );
 }

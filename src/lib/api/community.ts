@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api/client';
 import type {
+  Auction,
   CommunityComment,
   CommunityPostDetail,
   CommunityPostListItem,
@@ -7,6 +8,7 @@ import type {
   PostType,
   ShareRequest,
   ShareRequestStatus,
+  Wallet,
 } from '@/lib/types';
 
 export async function fetchPosts(params?: {
@@ -33,6 +35,7 @@ export interface CreatePostInput {
   cropName?: string | null;
   files: File[];
   fromMemoImageIds?: number[];
+  auctionDeadline?: string | null; // 나눔(경매) 마감 ISO
 }
 
 export async function createPost(input: CreatePostInput): Promise<CommunityPostDetail> {
@@ -43,6 +46,7 @@ export async function createPost(input: CreatePostInput): Promise<CommunityPostD
   if (input.title) form.append('title', input.title);
   if (input.cropSlug) form.append('cropSlug', input.cropSlug);
   if (input.cropName) form.append('cropName', input.cropName);
+  if (input.auctionDeadline) form.append('auctionDeadline', input.auctionDeadline);
   for (const f of input.files) form.append('files', f);
   for (const id of input.fromMemoImageIds ?? []) form.append('fromMemoImageIds', String(id));
   const { data } = await apiClient.post<CommunityPostDetail>('/api/v1/community/posts', form, {
@@ -95,5 +99,22 @@ export async function updateShareRequest(
     `/api/v1/community/share-requests/${requestId}`,
     { status },
   );
+  return data;
+}
+
+// ───────────── 나눔 경매 ─────────────
+export async function placeBid(
+  postId: number,
+  body: { bidderName: string; amount: number },
+): Promise<Auction> {
+  const { data } = await apiClient.post<Auction>(
+    `/api/v1/community/posts/${postId}/bids`,
+    body,
+  );
+  return data;
+}
+
+export async function fetchWallet(): Promise<Wallet> {
+  const { data } = await apiClient.get<Wallet>('/api/v1/community/wallet');
   return data;
 }

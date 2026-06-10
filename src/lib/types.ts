@@ -308,6 +308,41 @@ export interface ShareRequest {
 }
 
 // 피드 카드 (목록). images 는 메모 사진과 동일 형태라 MemoImage 재사용.
+// ───────────── 나눔 경매(포인트 입찰) ─────────────
+export interface AuctionSummary {
+  deadline: string;
+  settled: boolean;
+  closed: boolean;
+  topBid?: number | null;
+  bidCount: number;
+}
+
+export interface Auction {
+  deadline: string;
+  settled: boolean;
+  closed: boolean;
+  topBid?: number | null;
+  topBidderName?: string | null;
+  bidCount: number;
+  myBid?: number | null;
+  iAmSeller: boolean;
+  winnerIsMe: boolean;
+  myAvailable: number;
+}
+
+export interface Bid {
+  id: number;
+  bidderName: string;
+  amount: number;
+  createdAt: string;
+  isMine: boolean;
+}
+
+export interface Wallet {
+  balance: number;
+  available: number;
+}
+
 export interface CommunityPostListItem {
   id: number;
   postType: PostType;
@@ -323,6 +358,7 @@ export interface CommunityPostListItem {
   likedByMe: boolean;
   isMine: boolean;
   shareStatus: ShareStatus;
+  auction?: AuctionSummary | null;
   createdAt: string;
 }
 
@@ -341,6 +377,8 @@ export interface CommunityPostDetail {
   shareStatus: ShareStatus;
   comments: CommunityComment[];
   shareRequests: ShareRequest[];
+  auction?: Auction | null;
+  bids: Bid[];
   createdAt: string;
 }
 
