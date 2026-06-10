@@ -80,3 +80,17 @@ export async function login(username: string, password: string): Promise<string>
   save(data);
   return data.username;
 }
+
+// 로그인 사용자의 닉네임·주소 수정. 토큰을 직접 실어 보낸다(생짜 axios).
+export async function updateProfile(
+  nickname: string,
+  address?: string | null,
+): Promise<void> {
+  const token = getToken();
+  const { data } = await axios.patch<AuthResponse>(
+    `${API_BASE_URL}/api/v1/auth/me`,
+    { nickname, address: address || null },
+    { headers: token ? { Authorization: `Bearer ${token}` } : undefined },
+  );
+  save(data);
+}

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Badge,
   Box,
@@ -85,12 +85,25 @@ export default function PlantingWizardPage() {
   const router = useRouter();
   const isMobile = useMediaQuery('(max-width: 48em)');
   const saved = loadPlantingInput();
-  // 지역 프리필 우선순위: 직전 추천 입력(sigungu) → 회원가입 주소 → 빈값.
-  const initRegion = splitSigungu(saved?.sigungu || getAddress() || '');
+  // 지역 프리필 우선순위: 회원정보 주소 → 직전 추천 입력(sigungu) → 빈값.
+  // 회원정보(내 주소)가 있으면 그걸 기본 지역으로 쓴다.
+  const initRegion = splitSigungu(getAddress() || saved?.sigungu || '');
 
   const [province, setProvince] = useState(initRegion.province);
   const [city, setCity] = useState(initRegion.city);
   const [regionError, setRegionError] = useState<string | undefined>();
+
+  // 마운트 후(클라이언트) 회원정보 주소를 지역에 반영. useState 초기화는 SSR 첫
+  // 렌더에서 localStorage 를 못 읽어 비어있을 수 있어 보정하고, 회원정보 주소가
+  // 있으면 직전 추천 지역(saved.sigungu)보다 우선해 덮어쓴다.
+  useEffect(() => {
+    const addr = getAddress();
+    if (!addr) return;
+    const r = splitSigungu(addr);
+    setProvince(r.province);
+    setCity(r.city);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const form = useForm<FormValues>({
     initialValues: {

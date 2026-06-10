@@ -28,8 +28,8 @@ import {
   Grid,
   Group,
   Loader,
+  Menu,
   Modal,
-  NumberInput,
   SegmentedControl,
   SimpleGrid,
   Skeleton,
@@ -58,6 +58,7 @@ import {
   IconClock,
   IconExternalLink,
   IconBulb,
+  IconHelpCircle,
   IconLayoutGrid,
   IconNote,
   IconPencil,
@@ -70,7 +71,6 @@ import {
 import { isAxiosError } from 'axios';
 import dayjs from 'dayjs';
 import {
-  delayTasksBatch,
   deleteMemoImage,
   deletePlan,
   getPlan,
@@ -83,6 +83,7 @@ import {
   upsertMemo,
 } from '@/lib/api/farmplan';
 import { verifyHarvestJournal } from '@/lib/api/rewards';
+import { CalendarTour, type TourStep } from '@/components/calendar/CalendarTour';
 import { mediaUrl } from '@/lib/constants';
 import { usePlanIds } from '@/lib/planStore';
 import type {
@@ -1058,6 +1059,30 @@ function AllDayPanel({
 
 // ─────────────────────────── 계획 캘린더 뷰 ───────────────────────────
 
+// 캘린더 가이드 투어 단계 (data-tour 셀렉터 + 설명).
+const TOUR_STEPS: TourStep[] = [
+  {
+    selector: '[data-tour="harvest"]',
+    title: '① 수확 인증하기',
+    body: "여기가 '수확했어요' 버튼이에요. 기르는 동안 캘린더에 메모·사진을 남기고 할 일을 완료하면 인증 근거가 쌓여요. 누르면 AI가 메모·사진·작업 완료를 종합 분석해 수확을 인증하고, 통과하면 도감·점수에 반영됩니다.",
+  },
+  {
+    selector: '[data-tour="calendar"]',
+    title: '② 달력에서 날짜 고르기',
+    body: '달력에서 날짜를 누르면 그 날의 할 일과 메모가 오른쪽에 떠요. 점은 1일짜리 할 일, 막대는 여러 날 이어지는 작업(물주기·생육관리 등)을 뜻합니다.',
+  },
+  {
+    selector: '[data-tour="tasks"]',
+    title: '③ 할 일 — 완료 / 지연',
+    body: "그 날 할 일이 카드로 보여요. 한 일은 '완료'를 누르고, 1일짜리 할 일은 '지연'으로 미룰 수 있어요(물주기 같은 지속 작업은 지연 없이 완료만 가능).",
+  },
+  {
+    selector: '[data-tour="memo"]',
+    title: '④ 메모 · 사진 남기기',
+    body: "이 날의 작물 상태를 메모로 적고 '사진 추가'로 기록을 남겨보세요. 메모·사진은 기록 점수로 적립되고, 수확 인증의 핵심 근거가 됩니다.",
+  },
+];
+
 function PlanView({ planId }: { planId: number }) {
   const qc = useQueryClient();
   const planQ = useQuery({
@@ -1067,6 +1092,7 @@ function PlanView({ planId }: { planId: number }) {
 
   const [month, setMonth] = useState<Date | null>(null);
   const [selected, setSelected] = useState<Date | null>(null);
+  const [tourOpen, setTourOpen] = useState(false);
 
   const plan = planQ.data;
 
@@ -1077,6 +1103,30 @@ function PlanView({ planId }: { planId: number }) {
       setSelected(start);
     }
   }, [plan, month]);
+
+  // 투어 시작 — 할 일/메모 단계가 비지 않도록 작업이 있는 날짜를 먼저 선택.
+  const startTour = () => {
+    const d = plan?.tasks[0]?.date;
+    if (d) {
+      setMonth(dayjs(d).toDate());
+      setSelected(dayjs(d).toDate());
+    }
+    setTourOpen(true);
+  };
+
+  // 첫 방문 시 자동으로 한 번 안내(localStorage 로 1회만).
+  useEffect(() => {
+    if (!plan) return;
+    try {
+      if (!localStorage.getItem('kiwofarm:calendar:tourSeen')) {
+        localStorage.setItem('kiwofarm:calendar:tourSeen', '1');
+        startTour();
+      }
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan]);
 
   const setPlan = (next: FarmPlan) => qc.setQueryData(['farmplan', planId], next);
 
@@ -1108,6 +1158,17 @@ function PlanView({ planId }: { planId: number }) {
     <Box bg="gray.0" mih="100vh" py={{ base: 24, md: 48 }}>
       <Container size="xl">
         <Stack gap="lg">
+          <Group justify="flex-end" mb={-8}>
+            <Button
+              size="xs"
+              variant="light"
+              color="gray"
+              leftSection={<IconHelpCircle size={15} />}
+              onClick={startTour}
+            >
+              사용법
+            </Button>
+          </Group>
           <PlanHeader plan={plan} />
           <Grid gutter="lg" align="stretch">
             <Grid.Col span={{ base: 12, md: 6 }}>
@@ -1130,6 +1191,11 @@ function PlanView({ planId }: { planId: number }) {
           </Grid>
         </Stack>
       </Container>
+      <CalendarTour
+        steps={TOUR_STEPS}
+        active={tourOpen}
+        onClose={() => setTourOpen(false)}
+      />
     </Box>
   );
 }
@@ -1283,49 +1349,50 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
               </Tooltip>
             </Group>
           )}
+          {/* 수확 인증 분석 안내 — 왼쪽(이름 아래) */}
+          <Text
+            size="sm"
+            fw={600}
+            mt={6}
+            c={!plan.harvested && harvestMut.isPending ? 'orange.6' : 'green.7'}
+          >
+            {plan.harvested
+              ? '이 텃밭은 수확 인증을 마쳤어요'
+              : harvestMut.isPending
+                ? 'AI가 일지를 분석하고 있어요…'
+                : `기록 ${memoDays}일 · 사진 ${photoCount}장 분석`}
+          </Text>
         </Box>
-        <Stack gap={4} align="flex-end">
+        <Box data-tour="harvest" style={{ marginLeft: 'auto' }}>
           {plan.harvested ? (
-            <>
+            <Button
+              component={Link}
+              href={`/collection?crop=${encodeURIComponent(plan.cropSlug ?? plan.cropName)}`}
+              color="orange"
+              variant="light"
+              radius="md"
+              leftSection={<IconBasket size={16} />}
+            >
+              수확 완료 · 도감 보기
+            </Button>
+          ) : (
+            <Tooltip
+              label="기르는 동안 캘린더에 사진을 1장 이상 남겨야 인증할 수 있어요"
+              disabled={photoCount > 0}
+            >
               <Button
-                component={Link}
-                href={`/collection?crop=${encodeURIComponent(plan.cropSlug ?? plan.cropName)}`}
                 color="orange"
-                variant="light"
                 radius="md"
                 leftSection={<IconBasket size={16} />}
+                loading={harvestMut.isPending}
+                disabled={photoCount === 0 || harvestMut.isPending}
+                onClick={() => harvestMut.mutate()}
               >
-                수확 완료 · 도감 보기
+                수확했어요
               </Button>
-              <Text size="xs" c="dimmed">
-                이 텃밭은 수확 인증을 마쳤어요
-              </Text>
-            </>
-          ) : (
-            <>
-              <Tooltip
-                label="기르는 동안 캘린더에 사진을 1장 이상 남겨야 인증할 수 있어요"
-                disabled={photoCount > 0}
-              >
-                <Button
-                  color="orange"
-                  radius="md"
-                  leftSection={<IconBasket size={16} />}
-                  loading={harvestMut.isPending}
-                  disabled={photoCount === 0 || harvestMut.isPending}
-                  onClick={() => harvestMut.mutate()}
-                >
-                  수확했어요
-                </Button>
-              </Tooltip>
-              <Text size="xs" c="dimmed">
-                {harvestMut.isPending
-                  ? 'AI가 일지를 분석하고 있어요…'
-                  : `기록 ${memoDays}일 · 사진 ${photoCount}장 분석`}
-              </Text>
-            </>
+            </Tooltip>
           )}
-        </Stack>
+        </Box>
       </Group>
       <HarvestResultModal
         result={harvestResult}
@@ -1785,7 +1852,7 @@ function PlanCalendar({
   const visitDaySet = useMemo(() => new Set(plan.visitDays ?? []), [plan.visitDays]);
 
   return (
-    <Card radius="lg" p="lg" withBorder bg="white">
+    <Card radius="lg" p="lg" withBorder bg="white" data-tour="calendar">
       <CalendarGridStyles />
       {/* 6주 기준 높이 예약(+여백) — 5주인 달은 아래가 여백, 달이 바뀌어도 카드 높이 일정 */}
       <Box mih={{ base: 380, md: 610 }} w="100%" pos="relative">
@@ -2043,51 +2110,17 @@ function DayPanel({
   useEffect(() => setMemoDraft(existingMemo), [existingMemo, key]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 지연(미루기) — 메모-완료와 별개로 아래에 따로 둔다.
-  const batchDelayMut = useMutation({
-    mutationFn: ({ taskIds, delayDays }: { taskIds: number[]; delayDays: number }) =>
-      delayTasksBatch(planId, taskIds, delayDays),
-    onSuccess: (p) => {
-      onChange(p);
-      notifications.show({
-        color: 'orange',
-        message: '이 날짜 작업을 지연했습니다. 이후 일정도 함께 밀렸어요.',
-      });
-    },
-    onError: () =>
-      notifications.show({ color: 'red', message: '일정 지연에 실패했습니다.' }),
-  });
-
-  const delayable = dayTasks.filter((t) => t.status !== 'done');
-  const [bulkDelayDays, setBulkDelayDays] = useState<number | ''>(1);
-  // 일정 지연 칸은 기본 접힘 — 헤더를 눌러야 안내와 입력이 펼쳐진다.
-  const [delayOpen, setDelayOpen] = useState(false);
-
-  // 메모 저장 = 완료. 내용이 있으면 그 날짜의 남은 작업을 모두 완료 처리한다.
+  // 메모 저장 = 메모·사진 기록(점수 적립)만. 작업 완료/지연은 작업 카드의 버튼으로 한다.
   const memoMut = useMutation({
-    mutationFn: async (content: string) => {
-      const afterMemo = await upsertMemo(planId, key!, content);
-      let next: FarmPlan = afterMemo;
-      const ids = content.trim()
-        ? dayTasks.filter((t) => t.status !== 'done').map((t) => t.id)
-        : [];
-      for (const id of ids) next = await updateTask(planId, id, 'done');
-      return {
-        plan: next,
-        pointsEarned: afterMemo.pointsEarned,
-        pointsTotal: afterMemo.pointsTotal,
-        completed: ids.length > 0,
-      };
-    },
-    onSuccess: ({ plan: next, pointsEarned, pointsTotal, completed }) => {
-      onChange(next);
-      const base = completed ? '메모를 저장하고 이 날 작업을 완료했어요.' : '메모를 저장했습니다.';
+    mutationFn: (content: string) => upsertMemo(planId, key!, content),
+    onSuccess: (res) => {
+      onChange(res);
       notifications.show({
         color: 'grape',
         message:
-          pointsEarned > 0
-            ? `${base} +${pointsEarned}점 (누적 ${pointsTotal.toLocaleString()}점)`
-            : base,
+          res.pointsEarned > 0
+            ? `메모를 저장했습니다. +${res.pointsEarned}점 (누적 ${res.pointsTotal.toLocaleString()}점)`
+            : '메모를 저장했습니다.',
       });
     },
     onError: () =>
@@ -2201,35 +2234,32 @@ function DayPanel({
           </Title>
         </Group>
 
-        {dayTasks.length === 0 ? (
-          <Text size="sm" c="dimmed">
-            이 날짜에 예정된 작업이 없습니다.
-          </Text>
-        ) : (
-          <Stack gap="sm">
-            {dayTasks.map((t) => (
-              <TaskRow key={t.id} task={t} />
-            ))}
-          </Stack>
-        )}
+        <Box data-tour="tasks">
+          {dayTasks.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              이 날짜에 예정된 작업이 없습니다.
+            </Text>
+          ) : (
+            <Stack gap="sm">
+              {dayTasks.map((t) => (
+                <TaskRow key={t.id} task={t} planId={planId} onChange={onChange} />
+              ))}
+            </Stack>
+          )}
+        </Box>
 
-        <Box>
+        <Box data-tour="memo">
           <Group gap={6} mb={4}>
             <IconNote size={16} color="var(--mantine-color-grape-6)" />
             <Text size="sm" fw={700}>
               이 날짜 메모
             </Text>
-            {delayable.length > 0 && (
-              <Badge size="xs" color="grape" variant="light" radius="sm">
-                저장하면 완료
-              </Badge>
-            )}
           </Group>
           <Text size="xs" c="dimmed" mb={6}>
-            메모를 적어 저장하면 이 날 할 일이 완료 처리됩니다.
+            이 날의 작물 상태·한 일을 기록해보세요 (메모·사진은 기록 점수로 적립돼요).
           </Text>
           <Textarea
-            placeholder="예: 오늘 한 일·작물 상태 메모 (저장 시 완료)"
+            placeholder="예: 오늘 한 일·작물 상태 메모"
             autosize
             minRows={3}
             value={memoDraft}
@@ -2278,64 +2308,10 @@ function DayPanel({
               loading={memoMut.isPending}
               onClick={() => memoMut.mutate(memoDraft)}
             >
-              {delayable.length > 0 ? '메모 저장 · 완료' : '메모 저장'}
+              메모 저장
             </Button>
           </Group>
         </Box>
-
-        {delayable.length > 0 && (
-          <Box>
-            <UnstyledButton onClick={() => setDelayOpen((v) => !v)} w="100%">
-              <Group gap={6} mb={4} wrap="nowrap">
-                <IconClock size={16} color="var(--mantine-color-orange-6)" />
-                <Text size="sm" fw={700}>
-                  일정 지연
-                </Text>
-                <IconChevronDown
-                  size={14}
-                  style={{
-                    marginLeft: 'auto',
-                    color: 'var(--mantine-color-gray-6)',
-                    transform: delayOpen ? 'rotate(180deg)' : 'none',
-                    transition: 'transform 160ms ease',
-                  }}
-                />
-              </Group>
-            </UnstyledButton>
-            <Collapse in={delayOpen}>
-              <Group gap={6} align="center">
-              <NumberInput
-                size="xs"
-                w={80}
-                min={1}
-                hideControls
-                value={bulkDelayDays}
-                onChange={(v) => setBulkDelayDays(typeof v === 'number' ? v : '')}
-              />
-              <Text size="xs" c="dimmed">
-                일
-              </Text>
-              <Button
-                size="compact-xs"
-                variant="light"
-                color="orange"
-                leftSection={<IconClock size={12} />}
-                loading={batchDelayMut.isPending}
-                disabled={typeof bulkDelayDays !== 'number'}
-                onClick={() => {
-                  if (typeof bulkDelayDays !== 'number') return;
-                  batchDelayMut.mutate({
-                    taskIds: delayable.map((t) => t.id),
-                    delayDays: bulkDelayDays,
-                  });
-                }}
-              >
-                지연 적용하기
-              </Button>
-            </Group>
-            </Collapse>
-          </Box>
-        )}
 
         {!outOfSeason && (
           <Stack gap={6}>
@@ -2431,52 +2407,79 @@ function DayPanel({
   );
 }
 
-// 작업 한 줄 — 표시 전용. 완료는 메모 저장으로, 지연은 아래 '일정 미루기' 섹션에서.
-function TaskRow({ task }: { task: FarmTask }) {
+// 작업 한 줄 — 완료/지연 버튼 포함. 지연은 1일짜리(점) 할일에만(지속형 물주기·생육관리 제외).
+function TaskRow({
+  task,
+  planId,
+  onChange,
+}: {
+  task: FarmTask;
+  planId: number;
+  onChange: (p: FarmPlan) => void;
+}) {
   const meta = CATEGORY_META[task.category];
   const isDone = task.status === 'done';
   const isDelayed = task.status === 'delayed';
+  // 1일짜리(점으로 표시되는) 할일만 지연 가능. 물주기·생육관리 등 기간형은 제외.
+  const canDelay = task.durationDays === 1;
+
+  const completeMut = useMutation({
+    mutationFn: () => updateTask(planId, task.id, 'done'),
+    onSuccess: onChange,
+    onError: () =>
+      notifications.show({ color: 'red', message: '완료 처리에 실패했습니다.' }),
+  });
+  const revertMut = useMutation({
+    mutationFn: () => updateTask(planId, task.id, 'planned'),
+    onSuccess: onChange,
+    onError: () =>
+      notifications.show({ color: 'red', message: '되돌리기에 실패했습니다.' }),
+  });
+  const delayMut = useMutation({
+    mutationFn: (days: number) => updateTask(planId, task.id, 'delayed', days),
+    onSuccess: (p, days) => {
+      onChange(p);
+      notifications.show({
+        color: 'orange',
+        message: `이 할 일을 ${days}일 미뤘어요. 이후 일정도 함께 밀렸어요.`,
+      });
+    },
+    onError: () =>
+      notifications.show({ color: 'red', message: '지연에 실패했습니다.' }),
+  });
+  const busy = completeMut.isPending || revertMut.isPending || delayMut.isPending;
+
   return (
     <Card
       radius="md"
       p="sm"
       withBorder
-      pos="relative"
       style={{
-        borderColor: isDelayed
-          ? 'var(--mantine-color-orange-3)'
-          : 'var(--mantine-color-gray-2)',
-        background: isDelayed ? 'var(--mantine-color-orange-0)' : undefined,
-        opacity: isDone ? 0.6 : 1,
+        borderColor: isDone
+          ? 'var(--mantine-color-green-3)'
+          : isDelayed
+            ? 'var(--mantine-color-orange-3)'
+            : 'var(--mantine-color-gray-2)',
+        background: isDone
+          ? 'var(--mantine-color-green-0)'
+          : isDelayed
+            ? 'var(--mantine-color-orange-0)'
+            : undefined,
       }}
     >
-      {(isDone || isDelayed) && (
-        <Box pos="absolute" top={8} right={8} style={{ zIndex: 1 }}>
-          {isDone ? (
-            <Badge size="xs" color="green" radius="sm" leftSection={<IconCheck size={10} />}>
-              완료
-            </Badge>
-          ) : (
-            <Badge
-              size="xs"
-              color="orange"
-              variant="light"
-              radius="sm"
-              leftSection={<IconClock size={10} />}
-            >
-              지연
-            </Badge>
-          )}
-        </Box>
-      )}
       <Box style={{ minWidth: 0 }}>
-        <Group gap={6} mb={2} wrap="wrap" align="baseline" pr={56}>
-          <Text fw={700} fz={14}>
+        <Group gap={6} mb={2} wrap="wrap" align="baseline">
+          <Text fw={700} fz={14} td={isDone ? 'line-through' : undefined} c={isDone ? 'dimmed' : undefined}>
             {task.title}
           </Text>
           <Text size="xs" c={`${meta.color}.7`} fw={600}>
             {meta.label}
           </Text>
+          {isDelayed && (
+            <Badge size="xs" color="orange" variant="light" radius="sm">
+              지연됨
+            </Badge>
+          )}
         </Group>
         {task.detail && (
           <Text size="xs" c="gray.7" mt={2} lh={1.5}>
@@ -2489,6 +2492,63 @@ function TaskRow({ task }: { task: FarmTask }) {
           </Text>
         )}
       </Box>
+
+      {/* 완료 / 지연 버튼 — 명확하게 */}
+      <Group gap="xs" mt="sm" justify="flex-end" wrap="nowrap">
+        {isDone ? (
+          <>
+            <Badge color="green" radius="sm" leftSection={<IconCheck size={12} />}>
+              완료됨
+            </Badge>
+            <Button
+              size="xs"
+              variant="subtle"
+              color="gray"
+              loading={revertMut.isPending}
+              disabled={busy}
+              onClick={() => revertMut.mutate()}
+            >
+              완료 취소
+            </Button>
+          </>
+        ) : (
+          <>
+            {canDelay && (
+              <Menu position="bottom-end" withinPortal shadow="md">
+                <Menu.Target>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color="orange"
+                    leftSection={<IconClock size={14} />}
+                    rightSection={<IconChevronDown size={12} />}
+                    loading={delayMut.isPending}
+                    disabled={busy}
+                  >
+                    지연
+                  </Button>
+                </Menu.Target>
+                <Menu.Dropdown>
+                  <Menu.Label>이 할 일 미루기</Menu.Label>
+                  <Menu.Item onClick={() => delayMut.mutate(1)}>내일로 (1일)</Menu.Item>
+                  <Menu.Item onClick={() => delayMut.mutate(3)}>3일 뒤</Menu.Item>
+                  <Menu.Item onClick={() => delayMut.mutate(7)}>일주일 뒤</Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            )}
+            <Button
+              size="xs"
+              color="green"
+              leftSection={<IconCheck size={14} />}
+              loading={completeMut.isPending}
+              disabled={busy}
+              onClick={() => completeMut.mutate()}
+            >
+              완료
+            </Button>
+          </>
+        )}
+      </Group>
     </Card>
   );
 }
