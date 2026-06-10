@@ -145,6 +145,7 @@ export interface ChatResponse {
   answer: string;
   chips: string[];
   sources: ChatSource[];
+  dataSources?: string[]; // 답변 근거 농사로 데이터셋(출처 표기)
 }
 
 /** 경로 A: 추천 결과 컨텍스트({user_input, recommendations})를 캐리해 상담 연속. */
