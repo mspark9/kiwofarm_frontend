@@ -63,6 +63,7 @@ import {
   IconPencil,
   IconPhoto,
   IconPlus,
+  IconSearch,
   IconSparkles,
   IconTrash,
   IconX,
@@ -416,6 +417,17 @@ function AllPlansView({
   const [hidden, setHidden] = useState<Set<number>>(() => new Set());
   // 삭제(하나씩) 모드 — 켜지면 각 행의 화살표 대신 휴지통이 나온다.
   const [deleteMode, setDeleteMode] = useState(false);
+  // 목록 펼치기/접기.
+  const [listOpen, setListOpen] = useState(true);
+  // 텃밭 이름(+작물명) 검색어.
+  const [search, setSearch] = useState('');
+  const filteredPlans = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return basePlans;
+    return basePlans.filter(({ plan }) =>
+      `${plan.name ?? ''} ${plan.cropName}`.toLowerCase().includes(q),
+    );
+  }, [basePlans, search]);
   // 삭제 확인 팝업.
   const [confirm, setConfirm] = useState<{
     title: string;
@@ -600,6 +612,7 @@ function AllPlansView({
                       label="전체 선택"
                       styles={{ label: { fontWeight: 600 } }}
                     />
+                    <Group gap={6} wrap="nowrap">
                     {deleteMode ? (
                       <Group gap={6} wrap="nowrap">
                         <Button
@@ -632,8 +645,39 @@ function AllPlansView({
                         삭제
                       </Button>
                     )}
+                    <ActionIcon
+                      size="sm"
+                      variant="subtle"
+                      color="gray"
+                      onClick={() => setListOpen((v) => !v)}
+                      aria-label="목록 펼치기/접기"
+                    >
+                      <IconChevronDown
+                        size={16}
+                        style={{
+                          transform: listOpen ? 'none' : 'rotate(-90deg)',
+                          transition: 'transform 160ms ease',
+                        }}
+                      />
+                    </ActionIcon>
+                    </Group>
                   </Group>
-                  {basePlans.map(({ id, plan }) => {
+                  <Collapse in={listOpen}>
+                    <Stack gap={6}>
+                      <TextInput
+                        size="xs"
+                        placeholder="텃밭 이름 검색"
+                        leftSection={<IconSearch size={14} />}
+                        value={search}
+                        onChange={(e) => setSearch(e.currentTarget.value)}
+                        styles={{ input: { background: 'white' } }}
+                      />
+                      {filteredPlans.length === 0 ? (
+                        <Text size="sm" c="dimmed" ta="center" py="sm">
+                          검색 결과가 없습니다.
+                        </Text>
+                      ) : (
+                        filteredPlans.map(({ id, plan }) => {
                     const on = !hidden.has(id);
                     // 종료일 = 가장 늦은 작업 종료일(없으면 시작일). YYYY-MM-DD 문자열 비교로 충분.
                     let lastKey = plan.startDate;
@@ -643,7 +687,7 @@ function AllPlansView({
                     // 삭제 모드면 화살표 대신 휴지통(개별 삭제), 아니면 열기 화살표.
                     const rowAction = deleteMode ? (
                       <ActionIcon
-                        size="sm"
+                        size={isMobile ? 'md' : 'sm'}
                         variant="subtle"
                         color="red"
                         style={{ flexShrink: 0 }}
@@ -651,11 +695,11 @@ function AllPlansView({
                         onClick={() => onDelete(id, planName)}
                         aria-label={`${planName} 삭제`}
                       >
-                        <IconTrash size={16} />
+                        <IconTrash size={isMobile ? 18 : 16} />
                       </ActionIcon>
                     ) : (
                       <ActionIcon
-                        size="sm"
+                        size={isMobile ? 'md' : 'sm'}
                         variant="subtle"
                         color="green"
                         style={{ flexShrink: 0 }}
@@ -663,7 +707,7 @@ function AllPlansView({
                         href={`/calendar?planId=${id}`}
                         aria-label={`${planName} 열기`}
                       >
-                        <IconChevronRight size={16} />
+                        <IconChevronRight size={isMobile ? 22 : 16} />
                       </ActionIcon>
                     );
                     return (
@@ -685,20 +729,17 @@ function AllPlansView({
                               aria-label={`${planName} 표시`}
                             />
                             {isMobile ? (
-                              // 모바일
+                              // 모바일: 이름·날짜는 왼쪽, 화살표는 행 맨 오른쪽(아래에서 따로 배치).
                               <Box style={{ flex: 1, minWidth: 0 }}>
-                                <Group gap={4} wrap="nowrap" style={{ minWidth: 0 }}>
-                                  <UnstyledButton
-                                    onClick={() => toggle(id)}
-                                    style={{ minWidth: 0 }}
-                                    aria-label={`${planName} 표시 토글`}
-                                  >
-                                    <Text fw={600} truncate c={on ? undefined : 'dimmed'}>
-                                      {planName}
-                                    </Text>
-                                  </UnstyledButton>
-                                  {rowAction}
-                                </Group>
+                                <UnstyledButton
+                                  onClick={() => toggle(id)}
+                                  style={{ minWidth: 0, display: 'block', width: '100%' }}
+                                  aria-label={`${planName} 표시 토글`}
+                                >
+                                  <Text fw={600} truncate c={on ? undefined : 'dimmed'}>
+                                    {planName}
+                                  </Text>
+                                </UnstyledButton>
                                 <Text size="xs" c="dimmed" truncate>
                                   {period}
                                 </Text>
@@ -722,10 +763,14 @@ function AllPlansView({
                               </>
                             )}
                           </Group>
+                          {isMobile && rowAction}
                         </Group>
                       </Card>
                     );
-                  })}
+                        })
+                      )}
+                    </Stack>
+                  </Collapse>
                 </Stack>
               )}
             </Stack>
@@ -2387,6 +2432,7 @@ function TaskRow({ task }: { task: FarmTask }) {
       radius="md"
       p="sm"
       withBorder
+      pos="relative"
       style={{
         borderColor: isDelayed
           ? 'var(--mantine-color-orange-3)'
@@ -2395,20 +2441,13 @@ function TaskRow({ task }: { task: FarmTask }) {
         opacity: isDone ? 0.6 : 1,
       }}
     >
-      <Box style={{ minWidth: 0 }}>
-        <Group gap={6} mb={2} wrap="wrap" align="baseline">
-          <Text fw={700} fz={14}>
-            {task.title}
-          </Text>
-          <Text size="xs" c={`${meta.color}.7`} fw={600}>
-            {meta.label}
-          </Text>
-          {isDone && (
+      {(isDone || isDelayed) && (
+        <Box pos="absolute" top={8} right={8} style={{ zIndex: 1 }}>
+          {isDone ? (
             <Badge size="xs" color="green" radius="sm" leftSection={<IconCheck size={10} />}>
               완료
             </Badge>
-          )}
-          {isDelayed && (
+          ) : (
             <Badge
               size="xs"
               color="orange"
@@ -2419,6 +2458,16 @@ function TaskRow({ task }: { task: FarmTask }) {
               지연
             </Badge>
           )}
+        </Box>
+      )}
+      <Box style={{ minWidth: 0 }}>
+        <Group gap={6} mb={2} wrap="wrap" align="baseline" pr={56}>
+          <Text fw={700} fz={14}>
+            {task.title}
+          </Text>
+          <Text size="xs" c={`${meta.color}.7`} fw={600}>
+            {meta.label}
+          </Text>
         </Group>
         {task.detail && (
           <Text size="xs" c="gray.7" mt={2} lh={1.5}>
