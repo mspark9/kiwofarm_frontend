@@ -7,15 +7,21 @@
   }
 }
 
-/* 모바일(<sm, 768px 미만): CTA 버튼 2개를 세로 가운데 정렬 + 동일 최소폭으로 통일. */
+/* 모바일·태블릿(<md, 62em 미만): CTA 버튼 2개의 폭을 동일하게 맞춘다.
+   기본 버튼은 <button>, 링크 버튼은 <a> 로 렌더되므로 둘 다 타깃한다. */
+@media (max-width: 61.99em) {
+  .ctaGroup a,
+  .ctaGroup button {
+    min-width: 220px;
+    justify-content: center;
+  }
+}
+
+/* 모바일(<sm, 768px 미만): 추가로 세로 가운데 정렬. */
 @media (max-width: 47.99em) {
   .ctaGroup {
     flex-direction: column;
     align-items: center;
     width: 100%;
-  }
-  .ctaGroup a {
-    min-width: 220px;
-    justify-content: center;
   }
 }

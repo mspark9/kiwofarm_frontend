@@ -3,6 +3,8 @@ import { ColorSchemeScript, MantineProvider } from '@mantine/core';
 import { Notifications } from '@mantine/notifications';
 import { theme } from '@/theme';
 import { QueryProvider } from '@/providers/QueryProvider';
+import { AuthProvider } from '@/components/auth/AuthProvider';
+import { RouteGuard } from '@/components/auth/RouteGuard';
 import { SiteHeader } from '@/components/layout/SiteHeader';
 
 import '@mantine/core/styles.css';
@@ -36,8 +38,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <MantineProvider theme={theme}>
           <Notifications />
           <QueryProvider>
-            <SiteHeader />
-            {children}
+            <AuthProvider>
+              <SiteHeader />
+              <RouteGuard>{children}</RouteGuard>
+            </AuthProvider>
           </QueryProvider>
         </MantineProvider>
       </body>
