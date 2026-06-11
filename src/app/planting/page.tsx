@@ -14,7 +14,6 @@ import {
   NumberInput,
   SegmentedControl,
   Stack,
-  Stepper,
   Text,
   ThemeIcon,
   Title,
@@ -71,6 +70,13 @@ const KOR_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 // 매일(월~일). 방문 요일 기본값.
 const ALL_DAYS = [1, 2, 3, 4, 5, 6, 0];
+
+// 추천 플로우 진행 단계(표시용). 이 페이지는 항상 1단계.
+const FLOW = [
+  { label: '조건 입력', desc: '장소·일조·경험' },
+  { label: '작물 추천', desc: '이번 달 적기 TOP' },
+  { label: '챗봇 상담', desc: '궁금증 해결' },
+];
 
 // 저장된 sigungu("경기도 성남시") → province / city 분해.
 function splitSigungu(sigungu: string): { province: string; city: string } {
@@ -149,11 +155,7 @@ export default function PlantingWizardPage() {
             </Badge>
           </Group>
 
-          <Stepper active={0} color="green" size="sm" iconSize={28}>
-            <Stepper.Step label="조건 입력" description="장소·일조·경험" />
-            <Stepper.Step label="작물 추천" description="이번 달 적기 TOP" />
-            <Stepper.Step label="챗봇 상담" description="궁금증 해결" />
-          </Stepper>
+          <FlowSteps active={0} />
 
           <Box>
             <Title order={3} fz={{ base: 22, md: 26 }} fw={800}>
@@ -330,6 +332,70 @@ export default function PlantingWizardPage() {
           </Group>
         </Stack>
       </Container>
+    </Box>
+  );
+}
+
+// 모던 진행 인디케이터 — 작은 노드 + 얇은 연결선, 현재 단계는 초록 채움 + 링 강조.
+function FlowSteps({ active }: { active: number }) {
+  return (
+    <Box pos="relative">
+      {/* 노드 중심(높이 14)을 지나는 연결선. 양끝 노드 중심(16.66%~83.33%)만 잇는다. */}
+      <Box
+        pos="absolute"
+        style={{
+          top: 13,
+          left: '16.66%',
+          right: '16.66%',
+          height: 2,
+          background: 'var(--mantine-color-gray-2)',
+          zIndex: 0,
+        }}
+      />
+      <Group justify="space-between" align="flex-start" gap={0} pos="relative" style={{ zIndex: 1 }}>
+        {FLOW.map((s, i) => {
+          const done = i < active;
+          const current = i === active;
+          const filled = done || current;
+          return (
+            <Stack key={s.label} align="center" gap={6} style={{ flex: 1, minWidth: 0 }}>
+              <Box
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: '50%',
+                  display: 'grid',
+                  placeItems: 'center',
+                  flexShrink: 0,
+                  fontSize: 12,
+                  fontWeight: 700,
+                  background: filled
+                    ? 'var(--mantine-color-green-6)'
+                    : 'var(--mantine-color-gray-1)',
+                  color: filled ? 'white' : 'var(--mantine-color-gray-5)',
+                  boxShadow: current ? '0 0 0 4px var(--mantine-color-green-1)' : undefined,
+                  transition: 'box-shadow 150ms ease',
+                }}
+              >
+                {done ? <IconCheck size={15} /> : i + 1}
+              </Box>
+              <Box ta="center" px={2}>
+                <Text
+                  size="sm"
+                  fw={current ? 700 : 500}
+                  c={current ? 'green.8' : done ? 'gray.7' : 'gray.5'}
+                  lh={1.2}
+                >
+                  {s.label}
+                </Text>
+                <Text size="xs" c="dimmed" mt={2} lh={1.3} visibleFrom="sm">
+                  {s.desc}
+                </Text>
+              </Box>
+            </Stack>
+          );
+        })}
+      </Group>
     </Box>
   );
 }
