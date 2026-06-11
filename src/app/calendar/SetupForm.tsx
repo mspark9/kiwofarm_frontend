@@ -37,6 +37,7 @@ import {
   IconArrowLeft,
   IconCalendarPlus,
   IconChevronDown,
+  IconCoin,
   IconHome2,
   IconMapPin,
   IconPlus,
@@ -372,7 +373,7 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
     <Box bg="gray.0" mih="100vh" py={{ base: 24, md: 48 }}>
       <Container size="sm">
         <Stack gap="lg">
-          <Group justify="space-between" align="center" wrap="nowrap">
+          <Group justify="space-between" align="center" wrap="nowrap" gap="sm">
             <UnstyledButton
               component={Link}
               href={fromPlanting ? '/planting/result' : '/calendar'}
@@ -384,16 +385,29 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
                 </Text>
               </Group>
             </UnstyledButton>
-            <Group gap={6} wrap="nowrap">
-              {farmAvailable != null && (
-                <Badge variant="light" color="orange" radius="md">
-                  보유 {farmAvailable.toLocaleString()}팜
-                </Badge>
-              )}
-              <Badge variant="light" color="green" leftSection={<IconSparkles size={12} />}>
-                농사로 농업기술정보 기반
-              </Badge>
-            </Group>
+            {farmAvailable != null && (
+              <Group
+                gap={6}
+                wrap="nowrap"
+                px={11}
+                py={5}
+                title="보유 팜"
+                style={{
+                  flexShrink: 0,
+                  background: 'var(--mantine-color-orange-0)',
+                  border: '1px solid var(--mantine-color-orange-2)',
+                  borderRadius: 'var(--mantine-radius-xl)',
+                }}
+              >
+                <IconCoin size={15} style={{ color: 'var(--mantine-color-orange-6)' }} />
+                <Text fz="sm" fw={700} c="orange.8" style={{ whiteSpace: 'nowrap', lineHeight: 1 }}>
+                  {farmAvailable.toLocaleString()}
+                  <Text span fz="xs" fw={500} c="orange.6">
+                    팜
+                  </Text>
+                </Text>
+              </Group>
+            )}
           </Group>
 
           {tabs}
@@ -411,6 +425,15 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
             <Text c="dimmed" size="sm" mt={6}>
               작물·지역·면적을 입력하면 날짜별 일정을 자동으로 채워드려요.
             </Text>
+            <Badge
+              variant="light"
+              color="green"
+              radius="sm"
+              leftSection={<IconSparkles size={12} />}
+              mt={12}
+            >
+              농사로 농업기술정보 기반
+            </Badge>
           </Box>
 
           <Card radius="lg" p="lg" withBorder bg="white">
