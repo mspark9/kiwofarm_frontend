@@ -91,6 +91,10 @@ const WEEKDAY_LABEL: Record<number, string> = Object.fromEntries(
 );
 const KOR_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
+// 재배 방식·장소 — 맥락 인지 일정 생성(이중 이식·노지 작업 방지)에 쓰인다.
+type CultivationMethod = 'direct' | 'seedling' | 'germinate';
+type GrowPlace = 'pot' | 'field';
+
 // 작물별로 따로 설정하는 한 줄(작목 + 그 작물만의 시작일·지역·면적·방문요일).
 interface CropEntry {
   key: string; // 작목 코드(subCategoryCode)
@@ -102,6 +106,8 @@ interface CropEntry {
   area: number | '';
   areaUnit: AreaUnit;
   visitDays: number[];
+  cultivationMethod: CultivationMethod;
+  growPlace: GrowPlace;
 }
 
 const cropEntryKey = (c: CropCatalogItem) => c.code;
@@ -114,6 +120,8 @@ interface DraftValues {
   area: number | '';
   areaUnit: AreaUnit;
   visitDays: number[];
+  cultivationMethod: CultivationMethod;
+  growPlace: GrowPlace;
 }
 
 // 추천받기 sigungu("경기도 성남시") → province / city.
@@ -142,6 +150,8 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
     area: '', // 면적 선택 — 화분만 쓰면 비워둠
     areaUnit: 'pyeong',
     visitDays: [6], // 기본: 토요일
+    cultivationMethod: 'seedling', // 초보는 모종 구입이 흔함
+    growPlace: 'field',
   }));
   const [queue, setQueue] = useState<CropEntry[]>([]);
   // 추가된 작물 중 현재 펼쳐 편집 중인 작목 코드(없으면 null).
@@ -165,6 +175,8 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
       area: '',
       areaUnit: 'pyeong',
       visitDays: [6],
+      cultivationMethod: 'seedling',
+      growPlace: 'field',
     };
     if (input) {
       const { province, city } = splitSigungu(input.sigungu);
@@ -184,6 +196,11 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
         facility: input.facility?.length ? input.facility : undefined,
         direction: input.direction ?? undefined,
       });
+      // 추천받기 장소/시설에 화분·베란다 신호가 있으면 화분 재배로 기본 설정.
+      const potHint = [input.place, ...(input.facility ?? [])].some(
+        (s) => typeof s === 'string' && /화분|베란다|옥상|실내|플랜터/.test(s),
+      );
+      next.growPlace = potHint ? 'pot' : 'field';
     }
     setDraft(next);
 
@@ -208,6 +225,8 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
             area: next.area,
             areaUnit: next.areaUnit,
             visitDays: next.visitDays,
+            cultivationMethod: next.cultivationMethod,
+            growPlace: next.growPlace,
           })),
         );
         setCrop(null);
@@ -240,6 +259,8 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
     area: draft.area,
     areaUnit: draft.areaUnit,
     visitDays: draft.visitDays,
+    cultivationMethod: draft.cultivationMethod,
+    growPlace: draft.growPlace,
   });
 
   // 현재 작물을 목록에 담고, 작목만 비워 다음 작물을 빠르게 입력(위치·면적·요일은 유지).
@@ -359,6 +380,8 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
       areaUnit: e.areaUnit,
       visitDays: e.visitDays.length ? [...e.visitDays].sort((a, b) => a - b) : undefined,
       growConditions: growConditions ?? undefined,
+      cultivationMethod: e.cultivationMethod,
+      growPlace: e.growPlace,
     }));
     createMut.mutate(payloads);
   };
@@ -740,6 +763,40 @@ function CropDetailFields({
           onChange={(v) => onChange({ city: v })}
         />
       </Group>
+
+      <Box>
+        <Text size="sm" fw={500} mb={4}>
+          재배 장소
+        </Text>
+        <SegmentedControl
+          fullWidth
+          data={[
+            { value: 'field', label: '텃밭·노지' },
+            { value: 'pot', label: '화분·베란다' },
+          ]}
+          value={values.growPlace}
+          onChange={(v) => onChange({ growPlace: v as GrowPlace })}
+        />
+      </Box>
+      <Box>
+        <Text size="sm" fw={500} mb={4}>
+          심는 방법
+        </Text>
+        <SegmentedControl
+          fullWidth
+          data={[
+            { value: 'seedling', label: '모종 심기' },
+            { value: 'direct', label: '씨앗 직파' },
+            { value: 'germinate', label: '발아 후 옮겨심기' },
+          ]}
+          value={values.cultivationMethod}
+          onChange={(v) => onChange({ cultivationMethod: v as CultivationMethod })}
+        />
+        <Text size="xs" c="dimmed" mt={6}>
+          화분이면 노지·밭 작업을, 직파면 옮겨심기를 일정에서 빼드려요. 발아 후 옮겨심기는
+          솜·스펀지에 싹을 틔운 뒤 흙으로 옮기는 방식이에요.
+        </Text>
+      </Box>
 
       <Box>
         <Group gap={6} mb={4}>

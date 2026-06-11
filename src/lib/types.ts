@@ -172,7 +172,7 @@ export type TaskCategory =
   | 'harvest'
   | 'etc';
 
-export type TaskStatus = 'planned' | 'done' | 'delayed';
+export type TaskStatus = 'planned' | 'done' | 'delayed' | 'skipped';
 
 // 추천받기(작목 추천) 위저드에서 입력한 재배 조건. 캘린더 일정 생성 시 GPT가 함께 고려.
 export interface GrowConditions {
@@ -196,6 +196,8 @@ export interface FarmPlanCreate {
   visitFrequency?: string; // weekly_1 | weekly_2 | weekly_3 | daily
   visitDays?: number[]; // 0=일 ~ 6=토
   growConditions?: GrowConditions; // 추천받기 조건 캐리(선택)
+  cultivationMethod?: 'direct' | 'seedling' | 'germinate'; // 직파 | 모종 | 발아 후 옮겨심기
+  growPlace?: 'pot' | 'field'; // 화분·베란다 | 텃밭·노지
 }
 
 export interface FarmTask {
