@@ -37,8 +37,10 @@ import {
 } from "@/lib/auth";
 
 interface AuthModalContextValue {
-  // 로그인 사용자명. 비로그인이면 null. 마운트 시 1회 읽는다(로그인은 새로고침으로 반영).
+  // 로그인 사용자명(계정 아이디). 비로그인이면 null. 마운트 시 1회 읽는다(로그인은 새로고침으로 반영).
   username: string | null;
+  // 표시용 닉네임(인사말·헤더). 프로필 수정 시 갱신된다. 비로그인이면 null.
+  nickname: string | null;
   // localStorage 인증 상태를 읽었는지. false면 아직 판별 전(SSR/하이드레이션 직후) →
   // 게이트가 깜빡이지 않도록 로딩으로 처리한다.
   ready: boolean;
@@ -59,12 +61,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loginOpen, setLoginOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [username, setUsername] = useState<string | null>(null);
+  const [nickname, setNickname] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     setUsername(getUsername());
+    setNickname(getAuthNickname());
     setReady(true);
   }, []);
+
+  // 프로필 저장 후 localStorage 최신 신원값을 상태로 반영 → 새로고침 없이 인사말/헤더 갱신.
+  const refreshIdentity = () => {
+    setUsername(getUsername());
+    setNickname(getAuthNickname());
+  };
 
   const logout = () => {
     clearAuth();
@@ -76,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthModalContext.Provider
       value={{
         username,
+        nickname,
         ready,
         openLogin: () => setLoginOpen(true),
         openProfile: () => setProfileOpen(true),
@@ -84,7 +95,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     >
       {children}
       <LoginModal opened={loginOpen} onClose={() => setLoginOpen(false)} />
-      <ProfileModal opened={profileOpen} onClose={() => setProfileOpen(false)} />
+      <ProfileModal
+        opened={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        onSaved={refreshIdentity}
+      />
     </AuthModalContext.Provider>
   );
 }
@@ -254,9 +269,11 @@ function splitAddr(addr: string | null): { province: string; city: string } {
 function ProfileModal({
   opened,
   onClose,
+  onSaved,
 }: {
   opened: boolean;
   onClose: () => void;
+  onSaved: () => void;
 }) {
   const [nickname, setNickname] = useState("");
   const [province, setProvince] = useState("경기도");
@@ -279,6 +296,7 @@ function ProfileModal({
     setLoading(true);
     try {
       await updateProfile(nickname.trim(), city ? `${province} ${city}` : null);
+      onSaved();
       onClose();
     } catch (e) {
       setError(

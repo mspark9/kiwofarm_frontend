@@ -94,6 +94,23 @@ function CommunityRoot() {
   const [composerOpen, setComposerOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<number | null>(null);
 
+  // 대시보드 등에서 ?post=<id> 로 진입하면 해당 글 상세를 바로 연다(클라이언트 전용 읽기).
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get('post');
+    const id = raw ? Number(raw) : NaN;
+    if (Number.isFinite(id)) setSelectedId(id);
+  }, []);
+
+  // 상세 모달 닫기 — 열 때 들어온 ?post= 파라미터를 URL 에서 정리(히스토리 추가 없이 교체).
+  const closeDetail = () => {
+    setSelectedId(null);
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('post')) {
+      url.searchParams.delete('post');
+      window.history.replaceState(null, '', url.pathname + url.search);
+    }
+  };
+
   const loggedIn = !!getAuthNickname();
   const posts = useQuery({
     queryKey: ['community', 'posts', filter],
@@ -206,7 +223,7 @@ function CommunityRoot() {
       )}
 
       <ComposerModal opened={composerOpen} onClose={() => setComposerOpen(false)} />
-      <DetailModal postId={selectedId} onClose={() => setSelectedId(null)} />
+      <DetailModal postId={selectedId} onClose={closeDetail} />
     </Stack>
   );
 }

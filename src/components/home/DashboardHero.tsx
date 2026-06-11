@@ -15,8 +15,9 @@ import {
   Card,
   Container,
   Group,
+  Image,
   Popover,
-  SimpleGrid,
+  Skeleton,
   Stack,
   Text,
   ThemeIcon,
@@ -24,25 +25,26 @@ import {
 } from "@mantine/core";
 import {
   IconArrowRight,
-  IconAward,
-  IconBook2,
-  IconCalendarEvent,
-  IconFlame,
+  IconHeart,
   IconHelpCircle,
   IconLeaf,
   IconMapPin,
+  IconMessageCircle,
   IconPlant2,
+  IconUsers,
 } from "@tabler/icons-react";
 import { getPlan, listPlans } from "@/lib/api/farmplan";
 import { fetchRewardsSummary } from "@/lib/api/rewards";
+import { fetchPosts } from "@/lib/api/community";
 import { getAddress } from "@/lib/auth";
+import { mediaUrl } from "@/lib/constants";
 import { AttendanceCard, PointsCard } from "@/components/home/RewardCards";
-import type { FarmPlan } from "@/lib/types";
+import type { CommunityPostListItem, FarmPlan } from "@/lib/types";
 
 // 작물 뱃지는 기본 4개까지만 노출하고 나머지는 '더보기'로 펼친다.
 const CROP_PREVIEW = 4;
 
-export function DashboardHero({ username }: { username: string }) {
+export function DashboardHero({ name }: { name: string }) {
   const address = getAddress();
   const [showAllCrops, setShowAllCrops] = useState(false);
 
@@ -83,12 +85,10 @@ export function DashboardHero({ username }: { username: string }) {
 
   const rewards = rewardsQuery.data;
   const growing = plans.length;
-  const collected = rewards?.collection.collectedCrops ?? 0;
-  const streak = rewards?.streak.current ?? 0;
 
   return (
     <Box style={{ background: "linear-gradient(180deg, #f6fbf6 0%, #ffffff 80%)" }}>
-      <Container size="xl" py={{ base: 40, md: 64 }}>
+      <Container size="sm" py={{ base: 40, md: 64 }}>
         <Stack gap="xl">
           <Group justify="space-between" align="flex-end" wrap="wrap" gap="md">
             <Box>
@@ -108,7 +108,7 @@ export function DashboardHero({ username }: { username: string }) {
                 )}
               </Group>
               <Title order={1} fz={{ base: 28, md: 40 }} fw={800} lh={1.2} style={{ letterSpacing: -1 }}>
-                {username}님, 오늘도
+                {name}님, 오늘도
                 <br />
                 텃밭 돌보러 오셨네요
               </Title>
@@ -124,28 +124,6 @@ export function DashboardHero({ username }: { username: string }) {
               작목 추천받기
             </Button>
           </Group>
-
-          {/* 작물 키우기 현황 요약 */}
-          <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
-            <StatCard
-              icon={<IconLeaf size={18} />}
-              value={`${growing}종`}
-              label="키우는 작물"
-              loading={plansQuery.isLoading}
-            />
-            <StatCard
-              icon={<IconBook2 size={18} />}
-              value={`${collected}종`}
-              label="도감 수집"
-              loading={rewardsQuery.isLoading}
-            />
-            <StatCard
-              icon={<IconFlame size={18} />}
-              value={`${streak}일`}
-              label="연속 기록"
-              loading={rewardsQuery.isLoading}
-            />
-          </SimpleGrid>
 
           {/* 내 팜 + 출석 보상 */}
           <PointsCard points={rewards?.points} loading={rewardsQuery.isLoading} />
@@ -265,35 +243,153 @@ export function DashboardHero({ username }: { username: string }) {
             )}
           </Card>
 
-          {/* 빠른 이동 */}
-          <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="md">
-            <QuickLink
-              href="/planting"
-              icon={<IconLeaf size={20} />}
-              title="작목 추천"
-              desc="지금 심기 좋은 작목 찾기"
-            />
-            <QuickLink
-              href="/calendar"
-              icon={<IconCalendarEvent size={20} />}
-              title="텃밭 캘린더"
-              desc="작업 일정 챙기기"
-            />
-            <QuickLink
-              href="/collection"
-              icon={<IconBook2 size={20} />}
-              title="작물 도감"
-              desc="수확 인증 모으기"
-            />
-            <QuickLink
-              href="/badges"
-              icon={<IconAward size={20} />}
-              title="뱃지 도감"
-              desc="업적 달성하고 팜 받기"
-            />
-          </SimpleGrid>
+          {/* 이웃 텃밭 소식(커뮤니티 미리보기) */}
+          <CommunityPreview />
         </Stack>
       </Container>
+    </Box>
+  );
+}
+
+// 작성 시각을 한국어 상대시간으로. relativeTime 플러그인 없이 직접 계산.
+function timeAgo(iso: string): string {
+  const d = dayjs(iso);
+  const now = dayjs();
+  const mins = now.diff(d, "minute");
+  if (mins < 1) return "방금";
+  if (mins < 60) return `${mins}분 전`;
+  const hrs = now.diff(d, "hour");
+  if (hrs < 24) return `${hrs}시간 전`;
+  const days = now.diff(d, "day");
+  if (days < 7) return `${days}일 전`;
+  return d.format("M월 D일");
+}
+
+// 이웃들의 최근 자랑·나눔 글 미리보기. 상세는 커뮤니티 페이지(모달)에서 열린다.
+function CommunityPreview() {
+  const postsQuery = useQuery({
+    queryKey: ["community-posts"],
+    queryFn: () => fetchPosts(),
+    staleTime: 60_000,
+  });
+  const posts = (postsQuery.data ?? []).slice(0, 3);
+
+  return (
+    <Card radius="lg" p="lg" withBorder bg="white">
+      <Group justify="space-between" align="center" mb="sm">
+        <Group gap={8}>
+          <ThemeIcon size={24} radius="md" variant="light" color="green">
+            <IconUsers size={14} />
+          </ThemeIcon>
+          <Text fw={700}>이웃 텃밭 소식</Text>
+        </Group>
+        <Button
+          component={Link}
+          href="/community"
+          variant="subtle"
+          color="green"
+          size="xs"
+          rightSection={<IconArrowRight size={14} />}
+        >
+          커뮤니티
+        </Button>
+      </Group>
+
+      {postsQuery.isLoading ? (
+        <Stack gap="sm">
+          {[0, 1, 2].map((i) => (
+            <Group key={i} gap="sm" wrap="nowrap">
+              <Skeleton h={44} w={44} radius="md" />
+              <Box style={{ flex: 1 }}>
+                <Skeleton h={12} w="60%" mb={6} />
+                <Skeleton h={10} w="40%" />
+              </Box>
+            </Group>
+          ))}
+        </Stack>
+      ) : posts.length > 0 ? (
+        <Stack gap={2}>
+          {posts.map((p) => (
+            <CommunityRow key={p.id} post={p} />
+          ))}
+        </Stack>
+      ) : (
+        <Stack gap="sm" align="flex-start" py="xs">
+          <Text c="dimmed" size="sm">
+            아직 이웃 소식이 없어요. 첫 수확을 자랑하거나 남는 작물을 나눠보세요.
+          </Text>
+          <Button component={Link} href="/community" size="xs" color="green" radius="md">
+            커뮤니티 가기
+          </Button>
+        </Stack>
+      )}
+    </Card>
+  );
+}
+
+function CommunityRow({ post }: { post: CommunityPostListItem }) {
+  const thumb = post.images[0]?.url;
+  const isShare = post.postType === "share";
+  return (
+    <Box
+      component={Link}
+      href={`/community?post=${post.id}`}
+      style={{ textDecoration: "none", color: "inherit", display: "block", borderRadius: 8 }}
+      px={6}
+      py={8}
+      className="kw-feature-card"
+    >
+      <Group gap="sm" wrap="nowrap" align="center">
+        {thumb ? (
+          <Image src={mediaUrl(thumb)} w={44} h={44} radius="md" fit="cover" />
+        ) : (
+          <Box
+            w={44}
+            h={44}
+            style={{
+              borderRadius: "var(--mantine-radius-md)",
+              background: "var(--mantine-color-green-0)",
+              display: "grid",
+              placeItems: "center",
+              flexShrink: 0,
+            }}
+          >
+            <IconLeaf size={18} color="var(--mantine-color-green-5)" />
+          </Box>
+        )}
+        <Box style={{ flex: 1, minWidth: 0 }}>
+          <Group gap={6} wrap="nowrap">
+            <Badge
+              size="xs"
+              variant="light"
+              color={isShare ? "orange" : "green"}
+              radius="sm"
+              w={35}
+              style={{ flexShrink: 0 }}
+              styles={{ label: { overflow: "visible" } }}
+            >
+              {isShare ? "나눔" : "자랑"}
+            </Badge>
+            <Text size="sm" fw={600} truncate>
+              {post.title || post.contentPreview}
+            </Text>
+          </Group>
+          <Text size="xs" c="dimmed" truncate mt={2}>
+            {post.authorName}
+            {post.cropName ? ` · ${post.cropName}` : ""} · {timeAgo(post.createdAt)}
+          </Text>
+        </Box>
+        <Group gap={10} wrap="nowrap" c="dimmed" style={{ flexShrink: 0 }}>
+          <Group gap={3} wrap="nowrap">
+            <IconHeart size={13} />
+            <Text size="xs">{post.likeCount}</Text>
+          </Group>
+          <Group gap={3} wrap="nowrap">
+            <IconMessageCircle size={13} />
+            <Text size="xs">{post.commentCount}</Text>
+          </Group>
+        </Group>
+      </Group>
     </Box>
   );
 }
@@ -323,68 +419,3 @@ function nextTaskInfo(
   return { ...base, label: `D-${diff}`, color: "green" };
 }
 
-function StatCard({
-  icon,
-  value,
-  label,
-  loading,
-}: {
-  icon: React.ReactNode;
-  value: string;
-  label: string;
-  loading?: boolean;
-}) {
-  return (
-    <Card radius="lg" p="lg" withBorder bg="white">
-      <Group gap="sm" align="center">
-        <ThemeIcon size={40} radius="md" variant="light" color="green">
-          {icon}
-        </ThemeIcon>
-        <Box>
-          <Text fz={26} fw={800} lh={1.1}>
-            {loading ? "—" : value}
-          </Text>
-          <Text size="sm" c="dimmed">
-            {label}
-          </Text>
-        </Box>
-      </Group>
-    </Card>
-  );
-}
-
-function QuickLink({
-  href,
-  icon,
-  title,
-  desc,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  title: string;
-  desc: string;
-}) {
-  return (
-    <Card
-      component={Link}
-      href={href}
-      radius="lg"
-      p="lg"
-      withBorder
-      className="kw-feature-card"
-      style={{ background: "white", textDecoration: "none", color: "inherit" }}
-    >
-      <Group gap="sm" align="center">
-        <ThemeIcon size={44} radius="md" variant="light" color="green">
-          {icon}
-        </ThemeIcon>
-        <Box>
-          <Text fw={700}>{title}</Text>
-          <Text size="xs" c="dimmed">
-            {desc}
-          </Text>
-        </Box>
-      </Group>
-    </Card>
-  );
-}
