@@ -440,7 +440,7 @@ function CollectionStatusCard({
   );
 }
 
-/** 활동 점수 — 총점 + 메모·사진·수확 분해. */
+/** 팜 — 총 보유량 + 메모·사진·수확 분해. */
 function PointsCard({ points, loading }: { points?: PointsOut; loading: boolean }) {
   return (
     <Card
@@ -452,7 +452,7 @@ function PointsCard({ points, loading }: { points?: PointsOut; loading: boolean 
       }}
     >
       <Text size="xs" c="green.0" fw={700} tt="uppercase" style={{ letterSpacing: 0.8 }}>
-        활동 점수
+        내 팜
       </Text>
       {loading || !points ? (
         <Skeleton height={120} mt={8} />
@@ -462,7 +462,7 @@ function PointsCard({ points, loading }: { points?: PointsOut; loading: boolean 
             {points.total.toLocaleString()}
             <Text span c="green.0" fz="md" fw={600}>
               {' '}
-              점
+              팜
             </Text>
           </Title>
           <SimpleGrid cols={3} spacing="xs" mt="md">
@@ -471,7 +471,7 @@ function PointsCard({ points, loading }: { points?: PointsOut; loading: boolean 
             <PointStat label="수확 인증" value={points.harvestCount} />
           </SimpleGrid>
           <Text size="xs" c="green.0" mt="md" style={{ opacity: 0.85 }}>
-            기록을 남길수록 점수가 쌓여요
+            기록을 남길수록 팜이 쌓여요
           </Text>
         </>
       )}

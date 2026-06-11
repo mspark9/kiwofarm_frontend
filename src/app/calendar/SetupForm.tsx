@@ -6,7 +6,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ActionIcon,
   Alert,
@@ -46,7 +46,12 @@ import {
 } from '@tabler/icons-react';
 import dayjs from 'dayjs';
 import { searchCropMaster } from '@/lib/api/crops';
+import { isAxiosError } from 'axios';
 import { createPlan, createPlansBatch } from '@/lib/api/farmplan';
+import { fetchWallet } from '@/lib/api/community';
+
+// 캘린더(텃밭 계획) 1개 생성 비용. 백엔드 wallet.CALENDAR_COST 와 일치.
+const FARM_COST = 300;
 import { usePlanIds } from '@/lib/planStore';
 import {
   clearPlantingCarryCrops,
@@ -260,6 +265,11 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
     setEditKey((k) => (k === key ? null : k));
   };
 
+  const qc = useQueryClient();
+  // 실시간 보유 팜(경매 에스크로 제외한 사용가능액). 단일 풀이라 도감·경매와 동일.
+  const wallet = useQuery({ queryKey: ['community', 'wallet'], queryFn: fetchWallet });
+  const farmAvailable = wallet.data?.available ?? null;
+
   const createMut = useMutation({
     // 1개면 단일 생성(해당 계획으로 이동), 2개 이상이면 배치 생성(모두 보기로 이동).
     mutationFn: (payloads: FarmPlanCreate[]) =>
@@ -270,6 +280,7 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
           }))
         : createPlansBatch(payloads),
     onSuccess: ({ created, failed }) => {
+      qc.invalidateQueries({ queryKey: ['community', 'wallet'] });
       if (created.length === 0) {
         notifications.show({
           color: 'red',
@@ -280,10 +291,14 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
       }
       for (const p of created) add(p.id);
       if (failed.length > 0) {
+        const lackFarm = failed.some((f) => f.error?.includes('팜'));
+        const names = failed.map((f) => f.cropName).join(', ');
         notifications.show({
           color: 'orange',
-          title: `${created.length}개 생성 · ${failed.length}개 실패`,
-          message: `${failed.map((f) => f.cropName).join(', ')} 계획 생성에 실패했어요.`,
+          title: `${created.length}개 생성 · ${failed.length}개 보류`,
+          message: lackFarm
+            ? `${names} — 팜이 부족해 만들지 못했어요. 기록을 남겨 팜을 모으면 만들 수 있어요.`
+            : `${names} 계획 생성에 실패했어요.`,
         });
       }
       sessionStorage.setItem('kiwofarm:lastPlanId', String(created[0].id));
@@ -291,11 +306,18 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
         created.length === 1 ? `/calendar?planId=${created[0].id}` : '/calendar',
       );
     },
-    onError: () => {
+    onError: (e) => {
+      // 402 = 팜 부족. 백엔드 detail 을 그대로 노출(그 외는 일반 안내).
+      const detail =
+        isAxiosError(e) && typeof e.response?.data?.detail === 'string'
+          ? e.response.data.detail
+          : null;
+      const lackFarm = isAxiosError(e) && e.response?.status === 402;
       notifications.show({
-        color: 'red',
-        title: '계획 생성 실패',
-        message: '백엔드 서버·DB·OPENAI_API_KEY를 확인해 주세요.',
+        color: lackFarm ? 'orange' : 'red',
+        title: lackFarm ? '팜이 부족해요' : '계획 생성 실패',
+        message:
+          detail ?? '백엔드 서버·DB·OPENAI_API_KEY를 확인해 주세요.',
       });
     },
   });
@@ -341,6 +363,10 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
   };
 
   const totalCount = queue.length + (crop ? 1 : 0);
+  const farmNeeded = Math.max(totalCount, 1) * FARM_COST;
+  const makeable = farmAvailable == null ? null : Math.floor(farmAvailable / FARM_COST);
+  const farmShort = farmAvailable != null && farmAvailable < farmNeeded;
+  const noneMakeable = makeable != null && makeable < 1;
 
   return (
     <Box bg="gray.0" mih="100vh" py={{ base: 24, md: 48 }}>
@@ -358,9 +384,16 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
                 </Text>
               </Group>
             </UnstyledButton>
-            <Badge variant="light" color="green" leftSection={<IconSparkles size={12} />}>
-              농사로 농업기술정보 기반
-            </Badge>
+            <Group gap={6} wrap="nowrap">
+              {farmAvailable != null && (
+                <Badge variant="light" color="orange" radius="md">
+                  보유 {farmAvailable.toLocaleString()}팜
+                </Badge>
+              )}
+              <Badge variant="light" color="green" leftSection={<IconSparkles size={12} />}>
+                농사로 농업기술정보 기반
+              </Badge>
+            </Group>
           </Group>
 
           {tabs}
@@ -436,15 +469,30 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
                 >
                   작물 추가
                 </Button>
+                {farmShort && (
+                  <Alert color="orange" variant="light" radius="md" py={8}>
+                    <Text size="sm">
+                      {noneMakeable
+                        ? `팜이 부족해요. 캘린더 1개에 ${FARM_COST}팜이 필요해요.`
+                        : `보유 ${farmAvailable!.toLocaleString()}팜 · 필요 ${farmNeeded.toLocaleString()}팜 — 지금은 ${makeable}개까지 만들 수 있어요.`}
+                    </Text>
+                    <Text size="xs" c="dimmed" mt={2}>
+                      메모·사진·수확 인증을 기록하면 팜이 쌓여요.
+                    </Text>
+                  </Alert>
+                )}
                 <Button
                   color="green"
                   size="md"
                   fullWidth
                   loading={createMut.isPending}
+                  disabled={noneMakeable}
                   leftSection={<IconCalendarPlus size={18} />}
                   onClick={onSubmit}
                 >
-                  {totalCount > 1 ? `${totalCount}개 텃밭 계획 만들기` : '텃밭 계획 만들기'}
+                  {totalCount > 1
+                    ? `${totalCount}개 텃밭 계획 만들기 (${(totalCount * FARM_COST).toLocaleString()}팜)`
+                    : `텃밭 계획 만들기 (${FARM_COST}팜)`}
                 </Button>
               </Stack>
             </Stack>

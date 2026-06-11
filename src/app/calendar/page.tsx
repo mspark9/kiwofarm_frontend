@@ -1539,7 +1539,7 @@ function HarvestResultModal({
           {result.verified ? (
             <Group justify="space-between" align="center">
               <Text size="sm" c="dimmed">
-                누적 {result.pointsTotal.toLocaleString()}점
+                누적 {result.pointsTotal.toLocaleString()}팜
               </Text>
               <Button
                 component={Link}
@@ -2110,7 +2110,7 @@ function DayPanel({
   useEffect(() => setMemoDraft(existingMemo), [existingMemo, key]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 메모 저장 = 메모·사진 기록(점수 적립)만. 작업 완료/지연은 작업 카드의 버튼으로 한다.
+  // 메모 저장 = 메모·사진 기록(팜 적립)만. 작업 완료/지연은 작업 카드의 버튼으로 한다.
   const memoMut = useMutation({
     mutationFn: (content: string) => upsertMemo(planId, key!, content),
     onSuccess: (res) => {
@@ -2119,7 +2119,7 @@ function DayPanel({
         color: 'grape',
         message:
           res.pointsEarned > 0
-            ? `메모를 저장했습니다. +${res.pointsEarned}점 (누적 ${res.pointsTotal.toLocaleString()}점)`
+            ? `메모를 저장했습니다. +${res.pointsEarned}팜 (누적 ${res.pointsTotal.toLocaleString()}팜)`
             : '메모를 저장했습니다.',
       });
     },
@@ -2135,7 +2135,7 @@ function DayPanel({
         color: 'grape',
         message:
           p.pointsEarned > 0
-            ? `사진을 첨부했습니다. +${p.pointsEarned}점 (누적 ${p.pointsTotal.toLocaleString()}점)`
+            ? `사진을 첨부했습니다. +${p.pointsEarned}팜 (누적 ${p.pointsTotal.toLocaleString()}팜)`
             : '사진을 첨부했습니다.',
       });
     },
