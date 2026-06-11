@@ -2527,8 +2527,11 @@ function LogActionButton({
       >
         <Stack gap="md">
           <Box>
-            <Text size="sm" fw={600} mb={6}>
+            <Text size="sm" fw={600} mb={2}>
               예정 작업에서 선택
+            </Text>
+            <Text size="xs" c="dimmed" mb={6}>
+              기간 작업(물주기·생육 관리 등)은 누른 날 하루만 완료로 기록돼요. 예정 기간은 그대로 남아요.
             </Text>
             {pending.length === 0 ? (
               <Text size="xs" c="dimmed">
@@ -2537,9 +2540,11 @@ function LogActionButton({
             ) : (
               <Stack gap={6}>
                 {pending.map((t) => {
+                  const isPeriod = t.durationDays > 1;
                   const diff = dayjs(dateKey).diff(dayjs(t.date), 'day');
-                  const note =
-                    diff === 0
+                  const note = isPeriod
+                    ? '오늘 기록'
+                    : diff === 0
                       ? '예정일'
                       : diff < 0
                         ? `${-diff}일 빠름`
@@ -2558,9 +2563,16 @@ function LogActionButton({
                         </Text>
                       }
                     >
-                      <Text size="sm" fw={600} truncate>
-                        {t.title}
-                      </Text>
+                      <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+                        <Text size="sm" fw={600} truncate>
+                          {t.title}
+                        </Text>
+                        {isPeriod && (
+                          <Badge size="xs" variant="light" color="blue" radius="sm">
+                            기간
+                          </Badge>
+                        )}
+                      </Group>
                     </Button>
                   );
                 })}
