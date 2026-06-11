@@ -56,7 +56,7 @@ export function SiteHeader() {
   const [scrolled, setScrolled] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const { username, openLogin, openProfile, logout } = useAuthModal();
+  const { username, nickname, openLogin, openProfile, logout } = useAuthModal();
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -177,7 +177,7 @@ export function SiteHeader() {
                   <Menu.Divider />
                   {username ? (
                     <>
-                      <Menu.Label>{username} 님</Menu.Label>
+                      <Menu.Label>{nickname ?? username} 님</Menu.Label>
                       <Menu.Item
                         onClick={openProfile}
                         leftSection={
