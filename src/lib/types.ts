@@ -403,6 +403,11 @@ export interface CollectionEntry {
   difficulty?: number | null;
   collected: boolean;
   harvestCount: number;
+  level: number; // 수확 레벨(0~maxLevel)
+  maxLevel: number;
+  nextLevelAt?: number | null; // 다음 레벨 도달 수확 횟수(최고 레벨이면 null)
+  nextReward?: number | null; // 다음 레벨 보상 팜
+  levelProgress: number; // 다음 레벨까지 진행도 0~1
   firstHarvestedAt?: string | null;
   lastHarvestedAt?: string | null;
 }
@@ -419,10 +424,21 @@ export interface BadgeOut {
   emoji: string;
   name: string;
   description: string;
-  achieved: boolean;
+  difficulty: number; // 1~5
+  rewardFarm: number; // 획득 시 지급 팜
+  achieved: boolean; // 조건 충족(스티키)
+  claimed: boolean; // 팜 획득 완료
+  claimable: boolean; // 지금 획득 가능(달성+미획득)
   progress: number; // 0~1
   current: number;
   threshold: number;
+}
+
+export interface BadgeClaim {
+  id: string;
+  name: string;
+  rewardFarm: number;
+  total: number;
 }
 
 export interface StreakOut {

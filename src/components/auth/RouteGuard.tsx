@@ -27,6 +27,7 @@ const PROTECTED_PREFIXES = [
   "/cultivation",
   "/calendar",
   "/collection",
+  "/badges",
   "/community",
 ];
 

@@ -16,6 +16,7 @@ import {
 import { ChatPanel } from "@/components/chat/ChatPanel";
 import { useAuthModal } from "@/components/auth/AuthProvider";
 import {
+  IconAward,
   IconBook2,
   IconCalendarEvent,
   IconChevronDown,
@@ -43,6 +44,7 @@ const MENU_LINKS: MenuLink[] = [
     icon: <IconCalendarEvent size={16} />,
   },
   { label: "작물 도감", href: "/collection", icon: <IconBook2 size={16} /> },
+  { label: "뱃지 도감", href: "/badges", icon: <IconAward size={16} /> },
   {
     label: "커뮤니티",
     href: "/community",

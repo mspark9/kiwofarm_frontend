@@ -1502,7 +1502,7 @@ function HarvestResultModal({
           {result.newBadges.length > 0 && (
             <Box>
               <Text size="sm" fw={700} mb={6}>
-                새로 획득한 뱃지
+                새로 달성한 뱃지 · 뱃지 도감에서 팜을 받으세요
               </Text>
               <Group gap="xs">
                 {result.newBadges.map((b) => (

@@ -123,18 +123,30 @@ function CommunityRoot() {
           </Title>
           <Group gap="sm">
             {loggedIn && wallet.data && (
-              <Badge
-                size="lg"
-                radius="md"
-                color="orange"
-                variant="light"
-                leftSection={<IconGavel size={14} />}
+              <Group
+                gap={8}
+                align="baseline"
+                wrap="nowrap"
+                px={14}
+                py={7}
+                style={{
+                  borderRadius: 999,
+                  border: '1px solid var(--mantine-color-gray-3)',
+                  background: 'white',
+                }}
               >
-                내 팜 {wallet.data.available.toLocaleString()}팜
-                {wallet.data.available !== wallet.data.balance
-                  ? ` (보유 ${wallet.data.balance.toLocaleString()})`
-                  : ''}
-              </Badge>
+                <Text fz={11} c="dimmed" fw={600} tt="uppercase" style={{ letterSpacing: 0.6 }}>
+                  {wallet.data.available !== wallet.data.balance ? '사용가능' : '팜'}
+                </Text>
+                <Text fw={800} fz={15} lh={1} style={{ letterSpacing: -0.3 }}>
+                  {wallet.data.available.toLocaleString()}
+                </Text>
+                {wallet.data.available !== wallet.data.balance && (
+                  <Text fz={11} c="dimmed">
+                    입찰중 {(wallet.data.balance - wallet.data.available).toLocaleString()}
+                  </Text>
+                )}
+              </Group>
             )}
             <Button
               color="green"
@@ -925,7 +937,7 @@ function AuctionPanel({
           {!a.topBid
             ? '입찰이 없어 유찰됐어요.'
             : a.winnerIsMe
-              ? `🎉 내가 ${a.topBid}팜으로 낙찰받았어요!`
+              ? `내가 ${a.topBid}팜으로 낙찰받았어요`
               : a.iAmSeller
                 ? `${a.topBid}팜에 낙찰됐어요. (+${a.topBid}팜 획득)`
                 : `${a.topBidderName ?? '누군가'} 님이 ${a.topBid}팜으로 낙찰받았어요.`}

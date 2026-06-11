@@ -24,6 +24,7 @@ import {
 } from "@mantine/core";
 import {
   IconArrowRight,
+  IconAward,
   IconBook2,
   IconCalendarEvent,
   IconFlame,
@@ -265,7 +266,7 @@ export function DashboardHero({ username }: { username: string }) {
           </Card>
 
           {/* 빠른 이동 */}
-          <SimpleGrid cols={{ base: 1, xs: 3 }} spacing="md">
+          <SimpleGrid cols={{ base: 1, xs: 2 }} spacing="md">
             <QuickLink
               href="/planting"
               icon={<IconLeaf size={20} />}
@@ -282,7 +283,13 @@ export function DashboardHero({ username }: { username: string }) {
               href="/collection"
               icon={<IconBook2 size={20} />}
               title="작물 도감"
-              desc="수확 인증·뱃지 모으기"
+              desc="수확 인증 모으기"
+            />
+            <QuickLink
+              href="/badges"
+              icon={<IconAward size={20} />}
+              title="뱃지 도감"
+              desc="업적 달성하고 팜 받기"
             />
           </SimpleGrid>
         </Stack>
