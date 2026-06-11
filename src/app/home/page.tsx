@@ -6,9 +6,15 @@
 
 import { useAuthModal } from "@/components/auth/AuthProvider";
 import { DashboardHero } from "@/components/home/DashboardHero";
+import { SiteFooter } from "@/components/home/SiteFooter";
 
 export default function HomePage() {
   const { username } = useAuthModal();
   if (!username) return null;
-  return <DashboardHero username={username} />;
+  return (
+    <>
+      <DashboardHero username={username} />
+      <SiteFooter />
+    </>
+  );
 }

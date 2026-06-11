@@ -3,15 +3,19 @@
 // 로그인 사용자가 홈("/")에서 보는 대시보드 히어로. 상단에 내 정보와 작물 키우기 현황
 // 요약을 보여준다. 데이터는 계정별 API(키우는 작물·도감/연속기록)에서 실시간으로 읽는다.
 
+import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import dayjs from "dayjs";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import {
+  ActionIcon,
   Badge,
   Box,
   Button,
   Card,
   Container,
   Group,
+  Popover,
   SimpleGrid,
   Stack,
   Text,
@@ -23,17 +27,23 @@ import {
   IconBook2,
   IconCalendarEvent,
   IconFlame,
+  IconHelpCircle,
   IconLeaf,
   IconMapPin,
   IconPlant2,
 } from "@tabler/icons-react";
-import { listPlans } from "@/lib/api/farmplan";
+import { getPlan, listPlans } from "@/lib/api/farmplan";
 import { fetchRewardsSummary } from "@/lib/api/rewards";
 import { getAddress } from "@/lib/auth";
 import { AttendanceCard, PointsCard } from "@/components/home/RewardCards";
+import type { FarmPlan } from "@/lib/types";
+
+// 작물 뱃지는 기본 4개까지만 노출하고 나머지는 '더보기'로 펼친다.
+const CROP_PREVIEW = 4;
 
 export function DashboardHero({ username }: { username: string }) {
   const address = getAddress();
+  const [showAllCrops, setShowAllCrops] = useState(false);
 
   const plansQuery = useQuery({
     queryKey: ["plans"],
@@ -45,6 +55,31 @@ export function DashboardHero({ username }: { username: string }) {
   });
 
   const plans = plansQuery.data ?? [];
+
+  // 뱃지의 D-day/상태용 작업 데이터. queryKey 를 캘린더(PlanView)와 동일하게 맞춰
+  // 캐시를 공유한다 → 홈에서 받아두면 캘린더 진입 시 재요청이 없다.
+  const planDetailQueries = useQueries({
+    queries: plans.map((p) => ({
+      queryKey: ["farmplan", p.id],
+      queryFn: () => getPlan(p.id),
+      staleTime: 30_000,
+      retry: false,
+    })),
+  });
+
+  // 작물 + 다음 작업 상태를 묶어 시급한 순으로 정렬(지연 → 오늘 → 임박 → 여유 →
+  // 완료/대기). 정렬 후 미리보기 4개를 자르므로, 위에 노출되는 4개가 가장 급한 작물.
+  const cropItems = plans
+    .map((p, i) => {
+      const detail = planDetailQueries[i]?.data;
+      return { plan: p, info: detail ? nextTaskInfo(detail) : null };
+    })
+    .sort(
+      (a, b) =>
+        (a.info?.order ?? Number.MAX_SAFE_INTEGER) -
+        (b.info?.order ?? Number.MAX_SAFE_INTEGER),
+    );
+
   const rewards = rewardsQuery.data;
   const growing = plans.length;
   const collected = rewards?.collection.collectedCrops ?? 0;
@@ -134,21 +169,81 @@ export function DashboardHero({ username }: { username: string }) {
             </Group>
             {growing > 0 ? (
               <Group gap={8}>
-                {plans.map((p) => (
-                  <Badge
-                    key={p.id}
-                    component={Link}
-                    href="/calendar"
-                    size="lg"
-                    variant="light"
-                    color="green"
+                {(showAllCrops ? cropItems : cropItems.slice(0, CROP_PREVIEW)).map(
+                  ({ plan: p, info }) => {
+                    const color = info?.color ?? "green";
+                    return (
+                      <Group
+                        key={p.id}
+                        gap={2}
+                        wrap="nowrap"
+                        h={32}
+                        style={{
+                          backgroundColor: `var(--mantine-color-${color}-light)`,
+                          color: `var(--mantine-color-${color}-light-color)`,
+                          borderRadius: "var(--mantine-radius-sm)",
+                          paddingInline: 10,
+                        }}
+                      >
+                        <Box
+                          component={Link}
+                          href="/calendar"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            height: "100%",
+                            color: "inherit",
+                            textDecoration: "none",
+                          }}
+                        >
+                          <IconLeaf size={13} />
+                          <Text fz="sm" fw={600} lh={1}>
+                            {p.cropName}
+                          </Text>
+                          {info && (
+                            <Text fz="sm" fw={700} lh={1}>
+                              {info.label}
+                            </Text>
+                          )}
+                        </Box>
+                        {info?.task && (
+                          <Popover width={220} position="top" withArrow shadow="md">
+                            <Popover.Target>
+                              <ActionIcon
+                                variant="transparent"
+                                size="xs"
+                                aria-label={`${p.cropName} 다음 작업 보기`}
+                                style={{ color: "inherit" }}
+                              >
+                                <IconHelpCircle size={15} />
+                              </ActionIcon>
+                            </Popover.Target>
+                            <Popover.Dropdown>
+                              <Text size="xs" c="dimmed" mb={2}>
+                                다음 작업
+                              </Text>
+                              <Text size="sm" fw={600}>
+                                {info.task}
+                              </Text>
+                            </Popover.Dropdown>
+                          </Popover>
+                        )}
+                      </Group>
+                    );
+                  },
+                )}
+                {growing > CROP_PREVIEW && (
+                  <Button
+                    variant="subtle"
+                    color="gray"
+                    size="xs"
                     radius="sm"
-                    style={{ cursor: "pointer" }}
-                    leftSection={<IconLeaf size={12} />}
+                    onClick={() => setShowAllCrops((v) => !v)}
                   >
-                    {p.cropName}
-                  </Badge>
-                ))}
+                    {showAllCrops ? "접기" : `+${growing - CROP_PREVIEW} 더보기`}
+                  </Button>
+                )}
               </Group>
             ) : (
               <Stack gap="sm" align="flex-start">
@@ -194,6 +289,31 @@ export function DashboardHero({ username }: { username: string }) {
       </Container>
     </Box>
   );
+}
+
+// 뱃지에 표시할 다음 작업 상태. 미완료(planned/delayed) 작업 중 가장 이른 것을
+// 오늘과 비교해 D-day 와 색을 만든다. 색은 시급도 신호: 지연=빨강, 오늘=주황,
+// 임박(D-3 이내)=주황, 그 외=초록, 수확 완료/대기=회색.
+// order: 정렬 키(작을수록 시급). 다음 작업까지 남은 일수를 그대로 쓴다 → 지연
+// (음수)이 가장 앞, 그다음 오늘(0)·임박·여유 순. 완료/대기는 맨 뒤로 보낸다.
+function nextTaskInfo(
+  plan: FarmPlan,
+): { label: string; color: string; order: number; task?: string } {
+  const IDLE = Number.MAX_SAFE_INTEGER;
+  if (plan.harvested) return { label: "수확 완료", color: "gray", order: IDLE };
+
+  const pending = plan.tasks
+    .filter((t) => t.status !== "done")
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (pending.length === 0) return { label: "대기", color: "gray", order: IDLE };
+
+  const next = pending[0];
+  const diff = dayjs(next.date).startOf("day").diff(dayjs().startOf("day"), "day");
+  const base = { task: next.title, order: diff };
+  if (diff < 0) return { ...base, label: `${-diff}일 지남`, color: "red" };
+  if (diff === 0) return { ...base, label: "오늘", color: "orange" };
+  if (diff <= 3) return { ...base, label: `D-${diff}`, color: "orange" };
+  return { ...base, label: `D-${diff}`, color: "green" };
 }
 
 function StatCard({
