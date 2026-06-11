@@ -130,7 +130,7 @@ function CommunityRoot() {
                 variant="light"
                 leftSection={<IconGavel size={14} />}
               >
-                내 포인트 {wallet.data.available.toLocaleString()}P
+                내 팜 {wallet.data.available.toLocaleString()}팜
                 {wallet.data.available !== wallet.data.balance
                   ? ` (보유 ${wallet.data.balance.toLocaleString()})`
                   : ''}
@@ -378,7 +378,7 @@ function PostCard({ post, onOpen }: { post: CommunityPostListItem; onOpen: () =>
                 {post.auction.closed
                   ? '마감'
                   : post.auction.topBid != null
-                    ? `${post.auction.topBid}P`
+                    ? `${post.auction.topBid}팜`
                     : '입찰 대기'}
               </Text>
             </Group>
@@ -537,13 +537,13 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
         {type === 'share' &&
           (isGuest ? (
             <Alert color="orange" variant="light" radius="md" icon={<IconGift size={16} />}>
-              나눔(포인트 경매)은 로그인 후 이용할 수 있어요.
+              나눔(팜 경매)은 로그인 후 이용할 수 있어요.
             </Alert>
           ) : (
             <Box>
               <DateTimePicker
                 label="나눔 마감 시간"
-                description="이 시간까지 이웃들이 활동포인트로 경매해요. 최고가 낙찰!"
+                description="이 시간까지 이웃들이 팜으로 경매해요. 최고가 낙찰!"
                 placeholder="마감 일시 선택"
                 value={deadline}
                 onChange={(v) => setDeadline(v ? new Date(v) : null)}
@@ -784,7 +784,7 @@ function DetailBody({
         </Button>
       </Group>
 
-      {/* 나눔 포인트 경매 */}
+      {/* 나눔 팜 경매 */}
       {post.postType === 'share' && post.auction && (
         <AuctionPanel post={post} onChanged={onChanged} />
       )}
@@ -847,7 +847,7 @@ function DetailBody({
   );
 }
 
-// 나눔 포인트 경매 패널 — 현재 최고가·마감·입찰·낙찰 결과.
+// 나눔 팜 경매 패널 — 현재 최고가·마감·입찰·낙찰 결과.
 function AuctionPanel({
   post,
   onChanged,
@@ -897,7 +897,7 @@ function AuctionPanel({
       <Group gap={6} mb={8}>
         <IconGavel size={18} color="var(--mantine-color-orange-7)" />
         <Text fw={700} size="sm" c="orange.9">
-          포인트 경매
+          팜 경매
         </Text>
         {a.closed && (
           <Badge size="sm" color="gray" variant="light" radius="sm">
@@ -911,7 +911,7 @@ function AuctionPanel({
           {a.closed ? '마감됨' : '마감'} · {fmtWhen(a.deadline)}
         </Text>
         <Text size="sm" fw={700} c="orange.8">
-          현재 최고 {a.topBid != null ? `${a.topBid}P` : '입찰 없음'}
+          현재 최고 {a.topBid != null ? `${a.topBid}팜` : '입찰 없음'}
           {a.topBidderName ? ` · ${a.topBidderName}` : ''}
         </Text>
       </Group>
@@ -925,10 +925,10 @@ function AuctionPanel({
           {!a.topBid
             ? '입찰이 없어 유찰됐어요.'
             : a.winnerIsMe
-              ? `🎉 내가 ${a.topBid}P로 낙찰받았어요!`
+              ? `🎉 내가 ${a.topBid}팜으로 낙찰받았어요!`
               : a.iAmSeller
-                ? `${a.topBid}P에 낙찰됐어요. (+${a.topBid}P 획득)`
-                : `${a.topBidderName ?? '누군가'} 님이 ${a.topBid}P로 낙찰받았어요.`}
+                ? `${a.topBid}팜에 낙찰됐어요. (+${a.topBid}팜 획득)`
+                : `${a.topBidderName ?? '누군가'} 님이 ${a.topBid}팜으로 낙찰받았어요.`}
         </Alert>
       ) : a.iAmSeller ? (
         <Text size="sm" c="dimmed">
@@ -936,12 +936,12 @@ function AuctionPanel({
         </Text>
       ) : !loggedIn ? (
         <Alert color="orange" variant="light" radius="md">
-          로그인 후 활동포인트로 입찰할 수 있어요.
+          로그인 후 팜으로 입찰할 수 있어요.
         </Alert>
       ) : (
         <Stack gap={6}>
           <Text size="xs" c="dimmed">
-            내 사용가능 포인트 <b>{a.myAvailable}P</b> · 최소 입찰 {minBid}P
+            내 사용가능 팜 <b>{a.myAvailable}팜</b> · 최소 입찰 {minBid}팜
           </Text>
           <Group gap="xs" wrap="nowrap" align="flex-end">
             <NumberInput
@@ -950,7 +950,7 @@ function AuctionPanel({
               max={a.myAvailable}
               value={amount}
               onChange={(v) => setAmount(typeof v === 'number' ? v : '')}
-              suffix="P"
+              suffix="팜"
               hideControls
             />
             <Button
@@ -969,7 +969,7 @@ function AuctionPanel({
           </Group>
           {a.myBid != null && (
             <Text size="xs" c="orange.7">
-              내 현재 입찰 {a.myBid}P
+              내 현재 입찰 {a.myBid}팜
             </Text>
           )}
         </Stack>
@@ -993,7 +993,7 @@ function AuctionPanel({
                   {b.isMine ? ' (나)' : ''}
                 </Text>
                 <Text size="xs" fw={600}>
-                  {b.amount}P
+                  {b.amount}팜
                 </Text>
               </Group>
             ))}
