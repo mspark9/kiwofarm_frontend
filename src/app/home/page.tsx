@@ -9,11 +9,11 @@ import { DashboardHero } from "@/components/home/DashboardHero";
 import { SiteFooter } from "@/components/home/SiteFooter";
 
 export default function HomePage() {
-  const { username } = useAuthModal();
+  const { username, nickname } = useAuthModal();
   if (!username) return null;
   return (
     <>
-      <DashboardHero username={username} />
+      <DashboardHero name={nickname ?? username} />
       <SiteFooter />
     </>
   );
