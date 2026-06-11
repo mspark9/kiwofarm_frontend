@@ -88,7 +88,7 @@ export function SiteHeader() {
           style={{ transition: "padding 180ms ease" }}
         >
           <Group justify="space-between" align="center" wrap="nowrap">
-            <UnstyledButton component={Link} href="/">
+            <UnstyledButton component={Link} href={username ? "/home" : "/"}>
               <Group gap={8} wrap="nowrap">
                 {/* 자체 그라데이션·라운드를 가진 앱 아이콘 SVG(투명 배경) — 정적이라 일반 img.
                     별도 box-shadow/border-radius 를 주면 투명 여백이 흰 타일처럼 보여 제거. */}

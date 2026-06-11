@@ -36,8 +36,8 @@ export default function HomePage() {
       <HomeHeroSwitch>
         <Hero />
       </HomeHeroSwitch>
-      <Features />
       <GuestOnly>
+        <Features />
         <Stats />
         <FinalCTA />
       </GuestOnly>

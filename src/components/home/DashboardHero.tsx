@@ -30,6 +30,7 @@ import {
 import { listPlans } from "@/lib/api/farmplan";
 import { fetchRewardsSummary } from "@/lib/api/rewards";
 import { getAddress } from "@/lib/auth";
+import { AttendanceCard, PointsCard } from "@/components/home/RewardCards";
 
 export function DashboardHero({ username }: { username: string }) {
   const address = getAddress();
@@ -109,6 +110,10 @@ export function DashboardHero({ username }: { username: string }) {
               loading={rewardsQuery.isLoading}
             />
           </SimpleGrid>
+
+          {/* 내 팜 + 출석 보상 */}
+          <PointsCard points={rewards?.points} loading={rewardsQuery.isLoading} />
+          <AttendanceCard attendance={rewards?.attendance} loading={rewardsQuery.isLoading} />
 
           {/* 키우는 작물 목록 또는 빈 상태 */}
           <Card radius="lg" p="lg" withBorder bg="white">
