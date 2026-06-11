@@ -1,6 +1,8 @@
 import { apiClient } from '@/lib/api/client';
 import type {
   AttendanceClaim,
+  BadgeClaim,
+  BadgeOut,
   CompareOut,
   CropJournalOut,
   HarvestCard,
@@ -10,6 +12,20 @@ import type {
 
 export async function fetchRewardsSummary(): Promise<RewardsSummary> {
   const { data } = await apiClient.get<RewardsSummary>('/api/v1/rewards/summary');
+  return data;
+}
+
+// 뱃지 도감 — 전체 뱃지(달성·획득·획득가능·난이도·획득팜).
+export async function fetchBadges(): Promise<BadgeOut[]> {
+  const { data } = await apiClient.get<BadgeOut[]>('/api/v1/rewards/badges');
+  return data;
+}
+
+// 뱃지 획득 — 달성한 뱃지의 팜을 적립. 미달성=400, 중복=409.
+export async function claimBadge(badgeId: string): Promise<BadgeClaim> {
+  const { data } = await apiClient.post<BadgeClaim>(
+    `/api/v1/rewards/badges/${badgeId}/claim`,
+  );
   return data;
 }
 

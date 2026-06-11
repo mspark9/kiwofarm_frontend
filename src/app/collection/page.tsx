@@ -204,9 +204,14 @@ export default function CollectionPage() {
 
           {/* 뱃지 */}
           <Card radius="lg" p="lg" withBorder bg="white">
-            <Text size="xs" c="dimmed" fw={700} tt="uppercase" style={{ letterSpacing: 0.8 }}>
-              뱃지
-            </Text>
+            <Group justify="space-between" align="center">
+              <Text size="xs" c="dimmed" fw={700} tt="uppercase" style={{ letterSpacing: 0.8 }}>
+                뱃지
+              </Text>
+              <Anchor href="/badges" size="xs" c="green.7" fw={600}>
+                뱃지 도감 전체보기 →
+              </Anchor>
+            </Group>
             <Group gap="sm" mt={8} wrap="wrap">
               {badges.map((b) => (
                 <BadgeChip key={b.id} badge={b} />
@@ -578,9 +583,28 @@ function CropTile({ entry, onOpen }: { entry: CollectionEntry; onOpen: () => voi
         </Tooltip>
         {entry.difficulty != null && <DifficultyDots level={entry.difficulty} />}
         {collected ? (
-          <Badge size="sm" variant="light" color="green" radius="sm">
-            완주 {entry.harvestCount}회
-          </Badge>
+          <Stack gap={4} align="center" w="100%">
+            <Badge size="sm" variant="light" color="green" radius="sm">
+              Lv{entry.level} · 수확 {entry.harvestCount}회
+            </Badge>
+            {entry.nextLevelAt != null ? (
+              <Tooltip
+                label={`다음 레벨까지 ${entry.nextLevelAt - entry.harvestCount}번`}
+              >
+                <Progress
+                  value={entry.levelProgress * 100}
+                  color="green"
+                  size="xs"
+                  radius="xl"
+                  w="78%"
+                />
+              </Tooltip>
+            ) : (
+              <Text size="xs" c="green.7" fw={600}>
+                최고 레벨
+              </Text>
+            )}
+          </Stack>
         ) : (
           <Text size="xs" c="dimmed">
             미수집
@@ -683,6 +707,16 @@ function HarvestCardModal({
                   <Text c="green.0" size="sm" mt={6}>
                     키우기 완주 {entry.harvestCount}회{growLabel ? ` · ${growLabel}` : ''}
                   </Text>
+                  <Group gap={8} mt={8} align="center">
+                    <Badge variant="white" color="green" radius="sm" size="sm">
+                      Lv{entry.level} 수확레벨
+                    </Badge>
+                    <Text c="green.0" size="xs">
+                      {entry.nextLevelAt != null
+                        ? `다음 레벨까지 ${entry.nextLevelAt - entry.harvestCount}번 · +${entry.nextReward}팜`
+                        : '최고 레벨 달성 🎉'}
+                    </Text>
+                  </Group>
                 </Box>
               </Group>
               <ActionIcon
