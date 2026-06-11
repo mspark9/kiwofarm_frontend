@@ -27,6 +27,7 @@ import {
   IconArrowLeft,
   IconCalendarPlus,
   IconChecks,
+  IconCircleCheck,
   IconSparkles,
 } from '@tabler/icons-react';
 import type { AiExplain, PlantingInput, RecommendationItem } from '@/lib/api/planting';
@@ -124,6 +125,7 @@ export default function PlantingResultPage() {
               color="gray"
               size="sm"
               leftSection={<IconArrowLeft size={14} />}
+              styles={{ root: { paddingLeft: 0 } }}
             >
               조건 다시 입력
             </Button>
@@ -316,9 +318,15 @@ function CropCard({
         {item.reasons.length > 0 && (
           <Group gap={6}>
             {item.reasons.map((r) => (
-              <Badge key={r} size="sm" variant="outline" color="gray" radius="sm">
-                {r}
-              </Badge>
+              <Group key={r} gap={5} wrap="nowrap">
+                <IconCircleCheck
+                  size={13}
+                  style={{ color: 'var(--mantine-color-green-6)', flexShrink: 0 }}
+                />
+                <Text size="xs" fw={500} c="gray.8" style={{ lineHeight: 1 }}>
+                  {r}
+                </Text>
+              </Group>
             ))}
           </Group>
         )}
