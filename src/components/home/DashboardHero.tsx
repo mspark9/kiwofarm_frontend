@@ -310,7 +310,7 @@ function nextTaskInfo(
   if (plan.harvested) return { label: "수확 완료", color: "gray", order: IDLE };
 
   const pending = plan.tasks
-    .filter((t) => t.status !== "done")
+    .filter((t) => t.status !== "done" && t.status !== "skipped")
     .sort((a, b) => a.date.localeCompare(b.date));
   if (pending.length === 0) return { label: "대기", color: "gray", order: IDLE };
 

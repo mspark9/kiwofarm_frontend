@@ -49,13 +49,14 @@ import {
   IconAlertCircle,
   IconAlertTriangle,
   IconArrowLeft,
+  IconBan,
   IconBasket,
   IconCalendarPlus,
   IconCheck,
   IconChevronDown,
+  IconDotsVertical,
   IconChevronLeft,
   IconChevronRight,
-  IconClock,
   IconExternalLink,
   IconBulb,
   IconHelpCircle,
@@ -64,6 +65,7 @@ import {
   IconPencil,
   IconPhoto,
   IconPlus,
+  IconRefresh,
   IconSparkles,
   IconTrash,
   IconX,
@@ -78,6 +80,10 @@ import {
   getWeeklyDigest,
   listPlans,
   renamePlan,
+  addTask,
+  deleteTask,
+  logTask,
+  reschedulePlan,
   updateTask,
   uploadMemoImages,
   upsertMemo,
@@ -388,7 +394,10 @@ function buildAllIndex(plans: LoadedPlan[]): Map<string, AllEntry[]> {
 function isPlanCompleted(plan: FarmPlan): boolean {
   if (plan.harvested) return true; // 수확 인증되면 작업 상태와 무관하게 완료.
   if (plan.tasks.length === 0) return false;
-  const allDone = plan.tasks.every((t) => t.status === 'done');
+  // 건너뛴(해당없음) 작업은 처리된 것으로 보고 완료 판정에 포함.
+  const allDone = plan.tasks.every(
+    (t) => t.status === 'done' || t.status === 'skipped',
+  );
   let last = plan.startDate;
   for (const t of plan.tasks) if (t.endDate > last) last = t.endDate;
   const pastHarvest = dayjs().format(FMT) > last;
@@ -1021,6 +1030,11 @@ function AllDayPanel({
                               지연
                             </Badge>
                           )}
+                          {t.status === 'skipped' && (
+                            <Badge size="xs" color="gray" variant="light" radius="sm">
+                              해당없음
+                            </Badge>
+                          )}
                         </Group>
                       </Card>
                     );
@@ -1221,6 +1235,18 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
     setNameInput(plan.name ?? '');
     setEditingName(true);
   };
+  const rescheduleMut = useMutation({
+    mutationFn: () => reschedulePlan(plan.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['farmplan', plan.id] });
+      notifications.show({
+        color: 'green',
+        message: '남은 일정을 오늘 기준으로 다시 맞췄어요.',
+      });
+    },
+    onError: () =>
+      notifications.show({ color: 'red', message: '일정 정비에 실패했습니다.' }),
+  });
   const photoCount = plan.memos.reduce((n, m) => n + m.images.length, 0);
   const memoDays = plan.memos.filter((m) => m.content.trim() || m.images.length > 0).length;
 
@@ -1363,7 +1389,19 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
                 : `기록 ${memoDays}일 · 사진 ${photoCount}장 분석`}
           </Text>
         </Box>
-        <Box data-tour="harvest" style={{ marginLeft: 'auto' }}>
+        <Group gap="xs" wrap="nowrap" style={{ marginLeft: 'auto' }}>
+          <Tooltip label="실제 진행에 맞춰 남은 일정을 오늘 기준으로 다시 맞춰요">
+            <Button
+              variant="default"
+              radius="md"
+              leftSection={<IconRefresh size={16} />}
+              loading={rescheduleMut.isPending}
+              onClick={() => rescheduleMut.mutate()}
+            >
+              일정 다시 정비
+            </Button>
+          </Tooltip>
+          <Box data-tour="harvest">
           {plan.harvested ? (
             <Button
               component={Link}
@@ -1392,7 +1430,8 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
               </Button>
             </Tooltip>
           )}
-        </Box>
+          </Box>
+        </Group>
       </Group>
       <HarvestResultModal
         result={harvestResult}
@@ -2200,6 +2239,7 @@ function DayPanel({
       return false;
     };
     return plan.tasks
+      .filter((t) => t.status !== 'skipped') // 건너뛴 작업은 주간 할 일에서 제외
       .filter((t) => t.date <= we && t.endDate >= weekStartKey)
       .filter((t) => t.durationDays <= 1 || hasVisitDay(t.date, t.endDate))
       .slice()
@@ -2245,6 +2285,16 @@ function DayPanel({
                 <TaskRow key={t.id} task={t} planId={planId} onChange={onChange} />
               ))}
             </Stack>
+          )}
+          {key && (
+            <Box mt="sm">
+              <LogActionButton
+                plan={plan}
+                planId={planId}
+                dateKey={key}
+                onChange={onChange}
+              />
+            </Box>
           )}
         </Box>
 
@@ -2408,6 +2458,182 @@ function DayPanel({
 }
 
 // 작업 한 줄 — 완료/지연 버튼 포함. 지연은 1일짜리(점) 할일에만(지속형 물주기·생육관리 제외).
+// 이 날 실제로 한 작업을 기록 — 남은 예정 작업에서 선택(고르면 그날로 기록+이후 일정
+// 자동 재정비) 또는 직접 입력. 예정 작업은 예보로만 두고, 실제 기록은 여기로 일원화.
+function LogActionButton({
+  plan,
+  planId,
+  dateKey,
+  onChange,
+}: {
+  plan: FarmPlan;
+  planId: number;
+  dateKey: string;
+  onChange: (p: FarmPlan) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [custom, setCustom] = useState('');
+  const pending = plan.tasks
+    .filter((t) => t.status === 'planned' || t.status === 'delayed')
+    .slice()
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const logMut = useMutation({
+    mutationFn: (taskId: number) => logTask(planId, taskId, dateKey),
+    onSuccess: (p) => {
+      onChange(p);
+      setOpen(false);
+      notifications.show({
+        color: 'green',
+        message: '작업을 기록했어요. 이후 일정도 맞춰 정비됐어요.',
+      });
+    },
+    onError: () =>
+      notifications.show({ color: 'red', message: '기록에 실패했습니다.' }),
+  });
+  const addMut = useMutation({
+    mutationFn: (title: string) => addTask(planId, { title, date: dateKey }),
+    onSuccess: (p) => {
+      onChange(p);
+      setCustom('');
+      setOpen(false);
+      notifications.show({ color: 'green', message: '작업을 기록했어요.' });
+    },
+    onError: () =>
+      notifications.show({ color: 'red', message: '기록에 실패했습니다.' }),
+  });
+  const busy = logMut.isPending || addMut.isPending;
+
+  return (
+    <>
+      <Button
+        variant="light"
+        color="green"
+        size="xs"
+        fullWidth
+        leftSection={<IconPlus size={14} />}
+        onClick={() => setOpen(true)}
+      >
+        이 날 한 작업 기록
+      </Button>
+      <Modal
+        opened={open}
+        onClose={() => setOpen(false)}
+        centered
+        radius="lg"
+        title={
+          <Text fw={800}>{dayjs(dateKey).format('M월 D일')}에 한 작업</Text>
+        }
+      >
+        <Stack gap="md">
+          <Box>
+            <Text size="sm" fw={600} mb={6}>
+              예정 작업에서 선택
+            </Text>
+            {pending.length === 0 ? (
+              <Text size="xs" c="dimmed">
+                남은 예정 작업이 없어요. 아래에서 직접 입력해 기록하세요.
+              </Text>
+            ) : (
+              <Stack gap={6}>
+                {pending.map((t) => {
+                  const diff = dayjs(dateKey).diff(dayjs(t.date), 'day');
+                  const note =
+                    diff === 0
+                      ? '예정일'
+                      : diff < 0
+                        ? `${-diff}일 빠름`
+                        : `${diff}일 늦음`;
+                  return (
+                    <Button
+                      key={t.id}
+                      variant="default"
+                      justify="space-between"
+                      disabled={busy}
+                      loading={logMut.isPending && logMut.variables === t.id}
+                      onClick={() => logMut.mutate(t.id)}
+                      rightSection={
+                        <Text size="xs" c="dimmed">
+                          {note}
+                        </Text>
+                      }
+                    >
+                      <Text size="sm" fw={600} truncate>
+                        {t.title}
+                      </Text>
+                    </Button>
+                  );
+                })}
+              </Stack>
+            )}
+          </Box>
+          <Divider label="또는 직접 입력" labelPosition="center" />
+          <Group gap="xs" align="flex-end" wrap="nowrap">
+            <TextInput
+              style={{ flex: 1 }}
+              placeholder="예: 곁순 제거, 지지대 설치"
+              value={custom}
+              onChange={(e) => setCustom(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && custom.trim()) addMut.mutate(custom.trim());
+              }}
+            />
+            <Button
+              color="green"
+              disabled={busy || !custom.trim()}
+              loading={addMut.isPending}
+              onClick={() => addMut.mutate(custom.trim())}
+            >
+              추가
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
+    </>
+  );
+}
+
+// 작업 더보기(⋮) — 건너뛰기(해당없음, 선택)·삭제. 안 맞는 작업을 치우는 출구.
+function TaskMoreMenu({
+  onSkip,
+  onDelete,
+  disabled,
+}: {
+  onSkip?: () => void;
+  onDelete: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Menu position="bottom-end" withinPortal shadow="md">
+      <Menu.Target>
+        <ActionIcon
+          variant="subtle"
+          color="gray"
+          size="lg"
+          disabled={disabled}
+          aria-label="작업 더보기"
+        >
+          <IconDotsVertical size={16} />
+        </ActionIcon>
+      </Menu.Target>
+      <Menu.Dropdown>
+        {onSkip && (
+          <Menu.Item leftSection={<IconBan size={14} />} onClick={onSkip}>
+            건너뛰기 (해당없음)
+          </Menu.Item>
+        )}
+        <Menu.Item
+          color="red"
+          leftSection={<IconTrash size={14} />}
+          onClick={onDelete}
+        >
+          이 작업 삭제
+        </Menu.Item>
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
+
 function TaskRow({
   task,
   planId,
@@ -2420,34 +2646,39 @@ function TaskRow({
   const meta = CATEGORY_META[task.category];
   const isDone = task.status === 'done';
   const isDelayed = task.status === 'delayed';
-  // 1일짜리(점으로 표시되는) 할일만 지연 가능. 물주기·생육관리 등 기간형은 제외.
-  const canDelay = task.durationDays === 1;
+  const isSkipped = task.status === 'skipped';
+  const muted = isDone || isSkipped; // 완료/건너뜀은 흐리게+취소선
 
-  const completeMut = useMutation({
-    mutationFn: () => updateTask(planId, task.id, 'done'),
-    onSuccess: onChange,
-    onError: () =>
-      notifications.show({ color: 'red', message: '완료 처리에 실패했습니다.' }),
-  });
+  // 예정 작업은 '예보' — 완료/지연은 날짜 패널의 '작업 추가'로 기록한다.
+  // 여기선 되돌리기(완료 취소)·건너뛰기(해당없음)·삭제만 둔다.
   const revertMut = useMutation({
     mutationFn: () => updateTask(planId, task.id, 'planned'),
     onSuccess: onChange,
     onError: () =>
       notifications.show({ color: 'red', message: '되돌리기에 실패했습니다.' }),
   });
-  const delayMut = useMutation({
-    mutationFn: (days: number) => updateTask(planId, task.id, 'delayed', days),
-    onSuccess: (p, days) => {
+  const skipMut = useMutation({
+    mutationFn: () => updateTask(planId, task.id, 'skipped'),
+    onSuccess: (p) => {
       onChange(p);
       notifications.show({
-        color: 'orange',
-        message: `이 할 일을 ${days}일 미뤘어요. 이후 일정도 함께 밀렸어요.`,
+        color: 'gray',
+        message: '이 작업을 건너뛰었어요. 언제든 되돌릴 수 있어요.',
       });
     },
     onError: () =>
-      notifications.show({ color: 'red', message: '지연에 실패했습니다.' }),
+      notifications.show({ color: 'red', message: '처리에 실패했습니다.' }),
   });
-  const busy = completeMut.isPending || revertMut.isPending || delayMut.isPending;
+  const deleteMut = useMutation({
+    mutationFn: () => deleteTask(planId, task.id),
+    onSuccess: (p) => {
+      onChange(p);
+      notifications.show({ color: 'gray', message: '작업을 삭제했어요.' });
+    },
+    onError: () =>
+      notifications.show({ color: 'red', message: '삭제에 실패했습니다.' }),
+  });
+  const busy = revertMut.isPending || skipMut.isPending || deleteMut.isPending;
 
   return (
     <Card
@@ -2464,12 +2695,15 @@ function TaskRow({
           ? 'var(--mantine-color-green-0)'
           : isDelayed
             ? 'var(--mantine-color-orange-0)'
-            : undefined,
+            : isSkipped
+              ? 'var(--mantine-color-gray-0)'
+              : undefined,
+        opacity: isSkipped ? 0.65 : 1,
       }}
     >
       <Box style={{ minWidth: 0 }}>
         <Group gap={6} mb={2} wrap="wrap" align="baseline">
-          <Text fw={700} fz={14} td={isDone ? 'line-through' : undefined} c={isDone ? 'dimmed' : undefined}>
+          <Text fw={700} fz={14} td={muted ? 'line-through' : undefined} c={muted ? 'dimmed' : undefined}>
             {task.title}
           </Text>
           <Text size="xs" c={`${meta.color}.7`} fw={600}>
@@ -2493,9 +2727,26 @@ function TaskRow({
         )}
       </Box>
 
-      {/* 완료 / 지연 버튼 — 명확하게 */}
+      {/* 완료 / 지연 / 건너뛰기 / 삭제 */}
       <Group gap="xs" mt="sm" justify="flex-end" wrap="nowrap">
-        {isDone ? (
+        {isSkipped ? (
+          <>
+            <Badge color="gray" variant="light" radius="sm" leftSection={<IconBan size={12} />}>
+              해당없음
+            </Badge>
+            <Button
+              size="xs"
+              variant="subtle"
+              color="gray"
+              loading={revertMut.isPending}
+              disabled={busy}
+              onClick={() => revertMut.mutate()}
+            >
+              되돌리기
+            </Button>
+            <TaskMoreMenu onDelete={() => deleteMut.mutate()} disabled={busy} />
+          </>
+        ) : isDone ? (
           <>
             <Badge color="green" radius="sm" leftSection={<IconCheck size={12} />}>
               완료됨
@@ -2510,42 +2761,18 @@ function TaskRow({
             >
               완료 취소
             </Button>
+            <TaskMoreMenu onDelete={() => deleteMut.mutate()} disabled={busy} />
           </>
         ) : (
           <>
-            {canDelay && (
-              <Menu position="bottom-end" withinPortal shadow="md">
-                <Menu.Target>
-                  <Button
-                    size="xs"
-                    variant="light"
-                    color="orange"
-                    leftSection={<IconClock size={14} />}
-                    rightSection={<IconChevronDown size={12} />}
-                    loading={delayMut.isPending}
-                    disabled={busy}
-                  >
-                    지연
-                  </Button>
-                </Menu.Target>
-                <Menu.Dropdown>
-                  <Menu.Label>이 할 일 미루기</Menu.Label>
-                  <Menu.Item onClick={() => delayMut.mutate(1)}>내일로 (1일)</Menu.Item>
-                  <Menu.Item onClick={() => delayMut.mutate(3)}>3일 뒤</Menu.Item>
-                  <Menu.Item onClick={() => delayMut.mutate(7)}>일주일 뒤</Menu.Item>
-                </Menu.Dropdown>
-              </Menu>
-            )}
-            <Button
-              size="xs"
-              color="green"
-              leftSection={<IconCheck size={14} />}
-              loading={completeMut.isPending}
+            <Text size="xs" c="dimmed">
+              예정
+            </Text>
+            <TaskMoreMenu
+              onSkip={() => skipMut.mutate()}
+              onDelete={() => deleteMut.mutate()}
               disabled={busy}
-              onClick={() => completeMut.mutate()}
-            >
-              완료
-            </Button>
+            />
           </>
         )}
       </Group>

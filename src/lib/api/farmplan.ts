@@ -99,6 +99,44 @@ export async function updateTask(
   return data;
 }
 
+// 작업 삭제 — 내 텃밭에 맞지 않는 작업을 계획에서 제거.
+export async function deleteTask(planId: number, taskId: number): Promise<FarmPlan> {
+  const { data } = await apiClient.delete<FarmPlan>(
+    `/api/v1/plans/${planId}/tasks/${taskId}`,
+  );
+  return data;
+}
+
+// 예정 작업을 실제로 한 날짜에 완료로 기록 + 이후 일정 자동 재정비(앞/뒤 이동).
+export async function logTask(
+  planId: number,
+  taskId: number,
+  date: string,
+): Promise<FarmPlan> {
+  const { data } = await apiClient.post<FarmPlan>(
+    `/api/v1/plans/${planId}/tasks/${taskId}/log`,
+    { date },
+  );
+  return data;
+}
+
+// 직접 입력한 작업을 해당 날짜에 완료로 기록.
+export async function addTask(
+  planId: number,
+  body: { title: string; date: string; category?: string },
+): Promise<FarmPlan> {
+  const { data } = await apiClient.post<FarmPlan>(`/api/v1/plans/${planId}/tasks`, body);
+  return data;
+}
+
+// 남은 일정을 오늘 기준으로 다시 맞춤.
+export async function reschedulePlan(planId: number): Promise<FarmPlan> {
+  const { data } = await apiClient.post<FarmPlan>(
+    `/api/v1/plans/${planId}/reschedule`,
+  );
+  return data;
+}
+
 // 같은 날짜의 여러 작업을 한 번에 같은 일수만큼 지연. 대상은 그대로 이동, 이후 일정만 방문요일 스냅.
 export async function delayTasksBatch(
   planId: number,
