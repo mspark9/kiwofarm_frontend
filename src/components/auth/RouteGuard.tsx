@@ -20,8 +20,9 @@ import {
 import { IconLock } from "@tabler/icons-react";
 import { useAuthModal } from "@/components/auth/AuthProvider";
 
-// 로그인 필요 라우트(접두사). 홈("/")·랜딩은 공개.
+// 로그인 필요 라우트(접두사). 루트("/")·랜딩은 공개, /home(로그인 후 홈)은 보호.
 const PROTECTED_PREFIXES = [
+  "/home",
   "/planting",
   "/cultivation",
   "/calendar",

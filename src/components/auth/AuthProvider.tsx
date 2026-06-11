@@ -117,8 +117,8 @@ function LoginModal({
       } else {
         await login(userId.trim(), password);
       }
-      // 계정 데이터로 전환 — 게스트 화면 상태를 비우기 위해 시작 페이지로.
-      window.location.href = "/";
+      // 계정 데이터로 전환 — 로그인 후 홈(/home)으로 전체 새로고침 이동.
+      window.location.href = "/home";
     } catch (e) {
       const detail =
         isAxiosError(e) && typeof e.response?.data?.detail === "string"

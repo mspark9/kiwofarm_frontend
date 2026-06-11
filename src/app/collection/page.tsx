@@ -53,7 +53,6 @@ import type {
   CropJournalOut,
   HarvestCard,
   HarvestRecipe,
-  PointsOut,
 } from '@/lib/types';
 
 const MONTH_LABEL = (m: number) => `${m}월`;
@@ -127,7 +126,6 @@ export default function CollectionPage() {
   }, [col]);
 
   const streak = summary.data?.streak;
-  const points = summary.data?.points;
   const badges = summary.data?.badges ?? [];
   const compare = summary.data?.compare;
 
@@ -197,15 +195,12 @@ export default function CollectionPage() {
             </Text>
           </Box>
 
-          {/* 수집 현황 + 포인트 */}
-          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
-            <CollectionStatusCard
-              col={col}
-              activeDays={streak?.totalActiveDays}
-              nextGoal={nextGoal}
-            />
-            <PointsCard points={points} loading={summary.isLoading} />
-          </SimpleGrid>
+          {/* 수집 현황 (내 팜·출석 보상은 /home 으로 이동) */}
+          <CollectionStatusCard
+            col={col}
+            activeDays={streak?.totalActiveDays}
+            nextGoal={nextGoal}
+          />
 
           {/* 뱃지 */}
           <Card radius="lg" p="lg" withBorder bg="white">
@@ -440,64 +435,6 @@ function CollectionStatusCard({
   );
 }
 
-/** 팜 — 총 보유량 + 메모·사진·수확 분해. */
-function PointsCard({ points, loading }: { points?: PointsOut; loading: boolean }) {
-  return (
-    <Card
-      radius="lg"
-      p="lg"
-      withBorder
-      style={{
-        background: 'linear-gradient(135deg, var(--mantine-color-green-7), var(--mantine-color-green-5))',
-      }}
-    >
-      <Text size="xs" c="green.0" fw={700} tt="uppercase" style={{ letterSpacing: 0.8 }}>
-        내 팜
-      </Text>
-      {loading || !points ? (
-        <Skeleton height={120} mt={8} />
-      ) : (
-        <>
-          <Title order={2} c="white" mt={4}>
-            {points.total.toLocaleString()}
-            <Text span c="green.0" fz="md" fw={600}>
-              {' '}
-              팜
-            </Text>
-          </Title>
-          <SimpleGrid cols={3} spacing="xs" mt="md">
-            <PointStat label="메모" value={points.memoCount} />
-            <PointStat label="사진" value={points.photoCount} />
-            <PointStat label="수확 인증" value={points.harvestCount} />
-          </SimpleGrid>
-          <Text size="xs" c="green.0" mt="md" style={{ opacity: 0.85 }}>
-            기록을 남길수록 팜이 쌓여요
-          </Text>
-        </>
-      )}
-    </Card>
-  );
-}
-
-function PointStat({ label, value }: { label: string; value: number }) {
-  return (
-    <Box
-      style={{
-        background: 'rgba(255,255,255,0.15)',
-        borderRadius: 10,
-        padding: '8px 6px',
-        textAlign: 'center',
-      }}
-    >
-      <Text c="white" fw={800} fz="lg" lh={1.1}>
-        {value.toLocaleString()}
-      </Text>
-      <Text c="green.0" size="xs" mt={2}>
-        {label}
-      </Text>
-    </Box>
-  );
-}
 
 function BadgeChip({ badge }: { badge: BadgeOut }) {
   return (

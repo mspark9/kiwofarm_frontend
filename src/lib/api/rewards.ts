@@ -1,5 +1,6 @@
 import { apiClient } from '@/lib/api/client';
 import type {
+  AttendanceClaim,
   CompareOut,
   CropJournalOut,
   HarvestCard,
@@ -9,6 +10,14 @@ import type {
 
 export async function fetchRewardsSummary(): Promise<RewardsSummary> {
   const { data } = await apiClient.get<RewardsSummary>('/api/v1/rewards/summary');
+  return data;
+}
+
+// 오늘 출석 — 연속 일차 보상 적립. 중복 출석은 409.
+export async function checkInAttendance(): Promise<AttendanceClaim> {
+  const { data } = await apiClient.post<AttendanceClaim>(
+    '/api/v1/rewards/attendance/check-in',
+  );
   return data;
 }
 

@@ -457,11 +457,30 @@ export interface PointsOut {
   harvestCount: number;
 }
 
+export interface AttendanceOut {
+  checkedToday: boolean;
+  streak: number; // 현재 연속 출석 일수
+  cycleDay: number; // 오늘 해당 1~20 사이클 일차(미출석이면 출석 시 받을 일차)
+  todayReward: number;
+  cycleDays: number; // 사이클 길이(20)
+  rewards: number[]; // 길이 20 일차별 보상표
+  total: number;
+}
+
+export interface AttendanceClaim {
+  cycleDay: number;
+  reward: number;
+  streak: number;
+  total: number;
+}
+// (도감 페이지에서 RewardsSummary.attendance 로 소비)
+
 export interface RewardsSummary {
   collection: CollectionOut;
   badges: BadgeOut[];
   streak: StreakOut;
   points: PointsOut;
+  attendance: AttendanceOut;
   compare?: CompareOut | null;
 }
 
