@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import styles from './page.module.css';
+import { HomeCta } from '@/components/home/HomeCta';
+import { GuestOnly, HomeHeroSwitch } from '@/components/home/HomeBranch';
 import {
   Anchor,
   Badge,
   Box,
-  Button,
   Card,
   Container,
   Grid,
@@ -18,7 +19,6 @@ import {
   Title,
 } from '@mantine/core';
 import {
-  IconArrowRight,
   IconArrowUpRight,
   IconAward,
   IconBook2,
@@ -33,10 +33,14 @@ import {
 export default function HomePage() {
   return (
     <Box style={{ background: 'white' }}>
-      <Hero />
+      <HomeHeroSwitch>
+        <Hero />
+      </HomeHeroSwitch>
       <Features />
-      <Stats />
-      <FinalCTA />
+      <GuestOnly>
+        <Stats />
+        <FinalCTA />
+      </GuestOnly>
       <Footer />
     </Box>
   );
@@ -91,22 +95,7 @@ function Hero() {
                 텃밭 캘린더로 챙겨드립니다.
               </Text>
 
-              <Group gap="md" mt="xs" className={styles.ctaGroup}>
-                <Button
-                  component={Link}
-                  href="/planting"
-                  size="lg"
-                  color="green"
-                  radius="md"
-                  rightSection={<IconArrowRight size={18} />}
-                  styles={{ root: { boxShadow: '0 10px 24px -10px rgba(34,139,84,0.55)' } }}
-                >
-                  지금 추천받기
-                </Button>
-                <Button component={Link} href="/#features" variant="default" size="lg" radius="md">
-                  기능 둘러보기
-                </Button>
-              </Group>
+              <HomeCta variant="hero" groupClassName={styles.ctaGroup} />
 
               <Group gap="xl" mt="md" wrap="wrap">
                 <TrustItem icon={<IconShieldCheck size={14} />} text="심는 법부터 수확까지" />
@@ -847,36 +836,7 @@ function FinalCTA() {
             <br />
             1년 영농 계획을 만들어 드립니다.
           </Text>
-          <Group gap="sm" mt="sm" className={styles.ctaGroup}>
-            <Button
-              component={Link}
-              href="/planting"
-              size="xl"
-              radius="md"
-              color="white"
-              c="green.8"
-              variant="white"
-              rightSection={<IconArrowRight size={20} />}
-            >
-              지금 시작하기
-            </Button>
-            <Button
-              component={Link}
-              href="/calendar"
-              size="xl"
-              radius="md"
-              variant="outline"
-              styles={{
-                root: {
-                  borderColor: 'rgba(255,255,255,0.55)',
-                  color: 'white',
-                  background: 'transparent',
-                },
-              }}
-            >
-              텃밭 캘린더 보기
-            </Button>
-          </Group>
+          <HomeCta variant="final" groupClassName={styles.ctaGroup} />
         </Stack>
       </Container>
     </Box>
