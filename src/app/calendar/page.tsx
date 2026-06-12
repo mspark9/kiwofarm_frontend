@@ -73,6 +73,7 @@ import {
 import { isAxiosError } from 'axios';
 import dayjs from 'dayjs';
 import {
+  abandonPlan,
   deleteMemoImage,
   deletePlan,
   getPlan,
@@ -391,18 +392,10 @@ function buildAllIndex(plans: LoadedPlan[]): Map<string, AllEntry[]> {
   return byDate;
 }
 
-// 계획 완료 판정: 수확 인증 완료 OR 모든 작업 완료 OR 마지막 작업(수확)일이 지남.
+// 계획 완료 판정: 수확 인증(harvested) 또는 경작 포기(abandoned)면 완료 탭으로 이동한다.
+// 전 작업 완료(allDone)·일정 종료일 경과(pastHarvest) 자동 완료는 보류.
 function isPlanCompleted(plan: FarmPlan): boolean {
-  if (plan.harvested) return true; // 수확 인증되면 작업 상태와 무관하게 완료.
-  if (plan.tasks.length === 0) return false;
-  // 건너뛴(해당없음) 작업은 처리된 것으로 보고 완료 판정에 포함.
-  const allDone = plan.tasks.every(
-    (t) => t.status === 'done' || t.status === 'skipped',
-  );
-  let last = plan.startDate;
-  for (const t of plan.tasks) if (t.endDate > last) last = t.endDate;
-  const pastHarvest = dayjs().format(FMT) > last;
-  return allDone || pastHarvest;
+  return plan.harvested || plan.abandoned;
 }
 
 function AllPlansView({
@@ -652,6 +645,12 @@ function AllPlansView({
                     for (const t of plan.tasks) if (t.endDate > lastKey) lastKey = t.endDate;
                     const period = `${dayjs(plan.startDate).format('YY.MM.DD')} - ${dayjs(lastKey).format('YY.MM.DD')}`;
                     const planName = planDisplayName(plan);
+                    // 포기한 계획은 이름 앞에 '포기' 뱃지를 단다(수확 완료와 구분).
+                    const abandonedBadge = plan.abandoned ? (
+                      <Badge size="xs" color="gray" variant="light" radius="sm" style={{ flexShrink: 0 }}>
+                        포기
+                      </Badge>
+                    ) : null;
                     // 삭제 모드면 화살표 대신 휴지통(개별 삭제), 아니면 열기 화살표.
                     const rowAction = deleteMode ? (
                       <ActionIcon
@@ -704,9 +703,12 @@ function AllPlansView({
                                   style={{ minWidth: 0, display: 'block', width: '100%' }}
                                   aria-label={`${planName} 표시 토글`}
                                 >
-                                  <Text fw={600} truncate c={on ? undefined : 'dimmed'}>
-                                    {planName}
-                                  </Text>
+                                  <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+                                    {abandonedBadge}
+                                    <Text fw={600} truncate c={on ? undefined : 'dimmed'}>
+                                      {planName}
+                                    </Text>
+                                  </Group>
                                 </UnstyledButton>
                                 <Text size="xs" c="dimmed" truncate>
                                   {period}
@@ -720,9 +722,12 @@ function AllPlansView({
                                   style={{ flex: 1, minWidth: 0 }}
                                   aria-label={`${planName} 표시 토글`}
                                 >
-                                  <Text fw={600} truncate c={on ? undefined : 'dimmed'}>
-                                    {planName}
-                                  </Text>
+                                  <Group gap={6} wrap="nowrap" style={{ minWidth: 0 }}>
+                                    {abandonedBadge}
+                                    <Text fw={600} truncate c={on ? undefined : 'dimmed'}>
+                                      {planName}
+                                    </Text>
+                                  </Group>
                                 </UnstyledButton>
                                 <Text size="xs" c="dimmed" style={{ flexShrink: 0 }}>
                                   {period}
@@ -1217,10 +1222,12 @@ function PlanView({ planId }: { planId: number }) {
 
 function PlanHeader({ plan }: { plan: FarmPlan }) {
   const qc = useQueryClient();
+  const router = useRouter();
   const [harvestResult, setHarvestResult] = useState<HarvestJournalResponse | null>(null);
   const [infoOpen, setInfoOpen] = useState(true);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
+  const [abandonOpen, setAbandonOpen] = useState(false);
 
   const renameMut = useMutation({
     mutationFn: (name: string) => renamePlan(plan.id, name),
@@ -1276,6 +1283,27 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
       notifications.show({ color: 'red', message });
     },
   });
+
+  // 경작 포기: 삭제하지 않고 abandoned=true 로 표시 → 완료 탭에 '포기' 뱃지로 남긴다.
+  const abandonMut = useMutation({
+    mutationFn: () => abandonPlan(plan.id),
+    onSuccess: () => {
+      setAbandonOpen(false);
+      qc.invalidateQueries({ queryKey: ['farmplan', plan.id] });
+      qc.invalidateQueries({ queryKey: ['plans', 'list'] });
+      notifications.show({ color: 'gray', message: '경작을 포기했어요. 완료 탭으로 옮겼어요.' });
+      router.push('/calendar');
+    },
+    onError: () =>
+      notifications.show({ color: 'red', message: '포기 처리에 실패했어요.' }),
+  });
+
+  // 수확 예정일(가장 늦은 작업 종료일)이 지났는데 수확 인증을 안 한 경우 '포기하기' 노출.
+  const lastTaskEnd = plan.tasks.reduce(
+    (m, t) => (t.endDate > m ? t.endDate : m),
+    plan.startDate,
+  );
+  const harvestOverdue = !plan.harvested && dayjs().format(FMT) > lastTaskEnd;
 
   const visitValue =
     (plan.visitDays?.length ?? 0) > 0
@@ -1390,11 +1418,12 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
                 : `기록 ${memoDays}일 · 사진 ${photoCount}장 분석`}
           </Text>
         </Box>
-        <Group gap="xs" wrap="nowrap" style={{ marginLeft: 'auto' }}>
+        <Group gap="xs" wrap="wrap" justify="flex-end" style={{ marginLeft: 'auto' }}>
           <Tooltip label="실제 진행에 맞춰 남은 일정을 오늘 기준으로 다시 맞춰요">
             <Button
               variant="default"
               radius="md"
+              w={150}
               leftSection={<IconRefresh size={16} />}
               loading={rescheduleMut.isPending}
               onClick={() => rescheduleMut.mutate()}
@@ -1422,6 +1451,7 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
               <Button
                 color="orange"
                 radius="md"
+                w={150}
                 leftSection={<IconBasket size={16} />}
                 loading={harvestMut.isPending}
                 disabled={photoCount === 0 || harvestMut.isPending}
@@ -1432,6 +1462,16 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
             </Tooltip>
           )}
           </Box>
+          {harvestOverdue && !plan.abandoned && (
+            <Button
+              variant="light"
+              color="red"
+              radius="md"
+              onClick={() => setAbandonOpen(true)}
+            >
+              포기하기
+            </Button>
+          )}
         </Group>
       </Group>
       <HarvestResultModal
@@ -1439,6 +1479,33 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
         cropName={plan.cropName}
         onClose={() => setHarvestResult(null)}
       />
+      <Modal
+        opened={abandonOpen}
+        onClose={() => setAbandonOpen(false)}
+        centered
+        radius="lg"
+        size="sm"
+        title="경작을 포기할까요?"
+      >
+        <Stack gap="md">
+          <Text size="sm" c="dimmed">
+            {planDisplayName(plan)}을(를) 완료 탭으로 옮기고 &apos;포기&apos; 뱃지를 붙여요. 메모·사진 기록은 그대로 보존돼요.
+          </Text>
+          <Group justify="flex-end" gap="xs">
+            <Button variant="default" radius="md" onClick={() => setAbandonOpen(false)}>
+              취소
+            </Button>
+            <Button
+              color="red"
+              radius="md"
+              loading={abandonMut.isPending}
+              onClick={() => abandonMut.mutate()}
+            >
+              포기하기
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
       <Group justify="space-between" align="center" mt="md" gap="xs">
         <Text size="sm" fw={700} c="green.9">
           재배 정보
