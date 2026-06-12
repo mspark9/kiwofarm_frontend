@@ -46,6 +46,7 @@ import {
 } from '@/lib/api/rewards';
 import { mediaUrl } from '@/lib/constants';
 import { cropEmoji } from '@/lib/cropEmoji';
+import { BadgeIcon } from '@/components/badges/BadgeIcon';
 import { cropIconSrc } from '@/lib/cropIcon';
 import type {
   BadgeOut,
@@ -411,7 +412,7 @@ function CollectionStatusCard({
               다음 목표
             </Text>
             <Text size="sm" fw={600}>
-              {nextGoal.emoji} {nextGoal.name} ·{' '}
+              <BadgeIcon src={nextGoal.emoji} size={20} inline /> {nextGoal.name} ·{' '}
               {nextGoal.threshold - nextGoal.current}
               {nextGoal.id.includes('streak') ? '일' : '개'} 남음
             </Text>

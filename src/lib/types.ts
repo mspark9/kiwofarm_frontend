@@ -247,6 +247,8 @@ export interface FarmPlan {
   trackProgress: boolean;
   // 검증된 수확 인증이 있으면 true → 캘린더에서 '완료'로 분류.
   harvested: boolean;
+  // 사용자가 경작을 포기하면 true → 완료 탭에 '포기' 뱃지로 분류.
+  abandoned: boolean;
   tasks: FarmTask[];
   memos: TaskMemo[];
 }
