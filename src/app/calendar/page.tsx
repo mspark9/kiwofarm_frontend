@@ -1419,13 +1419,20 @@ function PlanHeader({ plan }: { plan: FarmPlan }) {
           </Text>
         </Box>
         <Group gap="xs" wrap="wrap" justify="flex-end" style={{ marginLeft: 'auto' }}>
-          <Tooltip label="실제 진행에 맞춰 남은 일정을 오늘 기준으로 다시 맞춰요">
+          <Tooltip
+            label={
+              plan.harvested
+                ? '수확 완료된 캘린더는 일정을 다시 정비할 수 없어요'
+                : '실제 진행에 맞춰 남은 일정을 오늘 기준으로 다시 맞춰요'
+            }
+          >
             <Button
               variant="default"
               radius="md"
               w={150}
               leftSection={<IconRefresh size={16} />}
               loading={rescheduleMut.isPending}
+              disabled={plan.harvested}
               onClick={() => rescheduleMut.mutate()}
             >
               일정 다시 정비
