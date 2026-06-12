@@ -1638,21 +1638,28 @@ function snapPlanTasks(plan: FarmPlan): FarmPlan {
 }
 
 function tasksByDate(plan: FarmPlan): Map<string, FarmTask[]> {
-  // 여러날 작업은 방문 가능일에만 할 일로 노출(방문 요일을 정한 경우).
-  // 단기 작업은 snapPlanTasks 가 이미 방문일로 옮겨 둔다.
-  const visitDays = new Set(plan.visitDays ?? []);
-  const map = new Map<string, FarmTask[]>();
+  // 기간 작업(관수·생육 등)은 달력 막대로 기간이 이미 보이므로, 날짜 목록엔 시작일에만
+  // '예정'으로 한 번 노출한다(매일 반복·기록 중복 방지). 같은 날 같은 제목의 기록(done
+  // 단일)이 있으면 그 예정을 숨긴다. 단일 작업은 해당 날짜에 표시.
+  const doneKey = new Set<string>();
   for (const t of plan.tasks) {
-    const multi = t.durationDays > 1;
+    if (t.durationDays <= 1 && t.status === 'done') doneKey.add(`${t.date}|${t.title}`);
+  }
+  const map = new Map<string, FarmTask[]>();
+  const push = (key: string, t: FarmTask) => {
+    const arr = map.get(key) ?? [];
+    arr.push(t);
+    map.set(key, arr);
+  };
+  for (const t of plan.tasks) {
+    if (t.durationDays > 1) {
+      if (!doneKey.has(`${t.date}|${t.title}`)) push(t.date, t);
+      continue;
+    }
     let d = dayjs(t.date);
     const end = dayjs(t.endDate);
     while (d.isBefore(end) || d.isSame(end, 'day')) {
-      if (!multi || visitDays.size === 0 || visitDays.has(d.day())) {
-        const key = d.format(FMT);
-        const arr = map.get(key) ?? [];
-        arr.push(t);
-        map.set(key, arr);
-      }
+      push(d.format(FMT), t);
       d = d.add(1, 'day');
     }
   }
@@ -2473,10 +2480,14 @@ function LogActionButton({
 }) {
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState('');
-  const pending = plan.tasks
-    .filter((t) => t.status === 'planned' || t.status === 'delayed')
-    .slice()
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const pending = (() => {
+    const seen = new Set<string>(); // 같은 제목 중복 제거(예: 관수가 두 번)
+    return plan.tasks
+      .filter((t) => t.status === 'planned' || t.status === 'delayed')
+      .filter((t) => (seen.has(t.title) ? false : (seen.add(t.title), true)))
+      .slice()
+      .sort((a, b) => a.date.localeCompare(b.date));
+  })();
 
   const logMut = useMutation({
     mutationFn: (taskId: number) => logTask(planId, taskId, dateKey),

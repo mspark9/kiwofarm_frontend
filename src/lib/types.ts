@@ -353,6 +353,8 @@ export interface CommunityPostListItem {
   cropName?: string | null;
   title?: string | null;
   contentPreview: string;
+  style?: string | null;
+  aiAssisted?: boolean;
   images: MemoImage[];
   likeCount: number;
   commentCount: number;
@@ -372,6 +374,8 @@ export interface CommunityPostDetail {
   cropName?: string | null;
   title?: string | null;
   content: string;
+  style?: string | null;
+  aiAssisted?: boolean;
   images: MemoImage[];
   likeCount: number;
   likedByMe: boolean;
