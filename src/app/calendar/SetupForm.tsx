@@ -784,6 +784,20 @@ function CropDetailFields({
         </Text>
         <SegmentedControl
           fullWidth
+          // 긴 라벨(발아 후 옮겨심기)이 좁은 화면에서 잘리지 않게 2줄 줄바꿈 허용.
+          // wordBreak: keep-all → 한글은 단어(어절) 단위로만 줄바꿈.
+          // 한 칸이 2줄로 높아져도 나머지 단일 줄 라벨이 칸 높이를 꽉 채우고 가운데 정렬되도록.
+          styles={{
+            label: {
+              whiteSpace: 'normal',
+              wordBreak: 'keep-all',
+              lineHeight: 1.15,
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            },
+          }}
           data={[
             { value: 'seedling', label: '모종 심기' },
             { value: 'direct', label: '씨앗 직파' },
