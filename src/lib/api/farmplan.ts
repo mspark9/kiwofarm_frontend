@@ -77,6 +77,15 @@ export async function updateSettings(
   return data;
 }
 
+// 경작 포기 — 삭제하지 않고 abandoned=true 로 표시(완료 탭에 '포기' 뱃지로 남음).
+export async function abandonPlan(planId: number): Promise<FarmPlan> {
+  const { data } = await apiClient.patch<FarmPlan>(
+    `/api/v1/plans/${planId}/settings`,
+    { abandoned: true },
+  );
+  return data;
+}
+
 // 텃밭 고유 이름 변경. 빈 문자열이면 백엔드가 기본값(null)로 비운다.
 export async function renamePlan(planId: number, name: string): Promise<FarmPlan> {
   const { data } = await apiClient.patch<FarmPlan>(
