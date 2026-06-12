@@ -521,15 +521,52 @@ function ImageStrip({ images, max = 4 }: { images: MemoImage[]; max?: number }) 
   );
 }
 
-function PostCard({ post, onOpen }: { post: CommunityPostListItem; onOpen: () => void }) {
+// 좋아요 낙관적 토글 — 캐시(피드 목록 + 상세)를 즉시 뒤집어 반응을 빠르게 하고,
+// 서버 응답으로 보정한다(실패 시 롤백). invalidate 로 전체 재조회하던 지연을 제거.
+function useToggleLike(postId: number) {
   const qc = useQueryClient();
-  const like = useMutation({
-    mutationFn: () => toggleLike(post.id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['community', 'posts'] });
-      qc.invalidateQueries({ queryKey: ['community', 'post', post.id] });
+  const flip = <T extends { likedByMe: boolean; likeCount: number }>(p: T): T => ({
+    ...p,
+    likedByMe: !p.likedByMe,
+    likeCount: p.likeCount + (p.likedByMe ? -1 : 1),
+  });
+  const setAll = (
+    fnList: (p: CommunityPostListItem) => CommunityPostListItem,
+    fnDetail: (p: CommunityPostDetail) => CommunityPostDetail,
+  ) => {
+    qc.setQueriesData<CommunityPostListItem[]>({ queryKey: ['community', 'posts'] }, (old) =>
+      old?.map((p) => (p.id === postId ? fnList(p) : p)),
+    );
+    qc.setQueryData<CommunityPostDetail>(['community', 'post', postId], (old) =>
+      old && old.id === postId ? fnDetail(old) : old,
+    );
+  };
+  return useMutation({
+    mutationFn: () => toggleLike(postId),
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: ['community', 'posts'] });
+      await qc.cancelQueries({ queryKey: ['community', 'post', postId] });
+      const prevLists = qc.getQueriesData<CommunityPostListItem[]>({ queryKey: ['community', 'posts'] });
+      const prevDetail = qc.getQueryData<CommunityPostDetail>(['community', 'post', postId]);
+      setAll(flip, flip);
+      return { prevLists, prevDetail };
+    },
+    onError: (_e, _v, ctx) => {
+      ctx?.prevLists?.forEach(([key, data]) => qc.setQueryData(key, data));
+      qc.setQueryData(['community', 'post', postId], ctx?.prevDetail);
+    },
+    onSuccess: (res) => {
+      // 서버가 돌려준 권위값으로 정렬(낙관적 추정과 어긋나면 보정).
+      setAll(
+        (p) => ({ ...p, likedByMe: res.liked, likeCount: res.likeCount }),
+        (p) => ({ ...p, likedByMe: res.liked, likeCount: res.likeCount }),
+      );
     },
   });
+}
+
+function PostCard({ post, onOpen }: { post: CommunityPostListItem; onOpen: () => void }) {
+  const like = useToggleLike(post.id);
 
   return (
     <Card
@@ -687,6 +724,17 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
     [journal.data],
   );
 
+  // AI 자동작성 사전 잔액 확인 — 부족하면 버튼 비활성화(캘린더·입찰과 동일 톤).
+  // demo 는 차감 면제라 잔액이 이 싱크로 줄지 않으므로 가드에 걸리지 않는다.
+  const wallet = useQuery({
+    queryKey: ['community', 'wallet'],
+    queryFn: fetchWallet,
+    enabled: opened,
+    staleTime: 15_000,
+  });
+  const farmAvailable = wallet.data?.available ?? null;
+  const cannotAffordAi = farmAvailable != null && farmAvailable < BRAG_COMPOSE_COST;
+
   // 선택한 작물 일지(메모)를 AI가 블로그형 초안으로 정리 + 일지 사진 자동 첨부.
   const compose = useMutation({
     mutationFn: () => composeDraft(cropSlug!),
@@ -816,17 +864,25 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
         )}
 
         {type === 'show' && cropSlug && (journal.data?.totalMemos ?? 0) > 0 && (
-          <Button
-            variant="light"
-            color="grape"
-            size="xs"
-            leftSection={<IconSparkles size={14} />}
-            loading={compose.isPending}
-            onClick={() => compose.mutate()}
-            style={{ alignSelf: 'flex-start' }}
-          >
-            AI로 일지 정리해서 자동 작성 · {BRAG_COMPOSE_COST}팜
-          </Button>
+          <Stack gap={4} style={{ alignSelf: 'flex-start' }}>
+            <Button
+              variant="light"
+              color="grape"
+              size="xs"
+              leftSection={<IconSparkles size={14} />}
+              loading={compose.isPending}
+              disabled={cannotAffordAi}
+              onClick={() => compose.mutate()}
+            >
+              AI로 일지 정리해서 자동 작성 · {BRAG_COMPOSE_COST}팜
+            </Button>
+            {cannotAffordAi && (
+              <Text size="xs" c="orange.7">
+                팜이 부족해요 (보유 {farmAvailable!.toLocaleString()}팜 · 필요{' '}
+                {BRAG_COMPOSE_COST}팜). 기록을 남겨 팜을 모아보세요.
+              </Text>
+            )}
+          </Stack>
         )}
 
         {/* 글 꾸미기 — 글꼴·크기·정렬. 본문 미리보기와 게시 후 렌더에 그대로 적용. */}
@@ -1067,10 +1123,7 @@ function DetailBody({
   const qc = useQueryClient();
   const [commentText, setCommentText] = useState('');
 
-  const like = useMutation({
-    mutationFn: () => toggleLike(post.id),
-    onSuccess: onChanged,
-  });
+  const like = useToggleLike(post.id);
   const comment = useMutation({
     mutationFn: () =>
       addComment(post.id, { authorName: getNickname() || '텃밭러', content: commentText }),

@@ -202,24 +202,6 @@ export default function CollectionPage() {
             nextGoal={nextGoal}
           />
 
-          {/* 뱃지 */}
-          <Card radius="lg" p="lg" withBorder bg="white">
-            <Group justify="space-between" align="center">
-              <Text size="xs" c="dimmed" fw={700} tt="uppercase" style={{ letterSpacing: 0.8 }}>
-                뱃지
-              </Text>
-              <Anchor href="/badges" size="xs" c="green.7" fw={600}>
-                뱃지 도감 전체보기 →
-              </Anchor>
-            </Group>
-            <Group gap="sm" mt={8} wrap="wrap">
-              {badges.map((b) => (
-                <BadgeChip key={b.id} badge={b} />
-              ))}
-              {summary.isLoading && <Skeleton height={36} width={280} />}
-            </Group>
-          </Card>
-
           {/* 긍정형 비교 통계 */}
           {compare && (
             <Card
@@ -440,29 +422,6 @@ function CollectionStatusCard({
   );
 }
 
-
-function BadgeChip({ badge }: { badge: BadgeOut }) {
-  return (
-    <Tooltip
-      label={
-        badge.achieved
-          ? badge.description
-          : `${badge.description} (${badge.current}/${badge.threshold})`
-      }
-    >
-      <Badge
-        size="lg"
-        radius="md"
-        variant={badge.achieved ? 'filled' : 'light'}
-        color={badge.achieved ? 'green' : 'gray'}
-        style={badge.achieved ? undefined : { opacity: 0.7 }}
-      >
-        {badge.emoji} {badge.name}
-        {!badge.achieved && ` ${Math.round(badge.progress * 100)}%`}
-      </Badge>
-    </Tooltip>
-  );
-}
 
 /** 난이도 점(●) — 1~3 척도. */
 function DifficultyDots({ level }: { level: number }) {
