@@ -90,6 +90,7 @@ import {
 } from '@/lib/api/farmplan';
 import { verifyHarvestJournal } from '@/lib/api/rewards';
 import { CalendarTour, type TourStep } from '@/components/calendar/CalendarTour';
+import { BadgeIcon } from '@/components/badges/BadgeIcon';
 import { mediaUrl } from '@/lib/constants';
 import { usePlanIds } from '@/lib/planStore';
 import type {
@@ -1546,7 +1547,7 @@ function HarvestResultModal({
               <Group gap="xs">
                 {result.newBadges.map((b) => (
                   <Badge key={b.id} size="lg" variant="light" color="yellow" radius="md">
-                    {b.emoji} {b.name}
+                    <BadgeIcon src={b.emoji} size={20} inline /> {b.name}
                   </Badge>
                 ))}
               </Group>
