@@ -31,6 +31,8 @@ export interface CreatePostInput {
   authorName: string;
   postType: PostType;
   title?: string;
+  style?: string | null; // 글 꾸미기 프리셋 "font|size|align"
+  aiAssisted?: boolean; // AI 자동작성 사용 여부(피드 뱃지)
   cropSlug?: string | null;
   cropName?: string | null;
   files: File[];
@@ -44,6 +46,8 @@ export async function createPost(input: CreatePostInput): Promise<CommunityPostD
   form.append('authorName', input.authorName);
   form.append('postType', input.postType);
   if (input.title) form.append('title', input.title);
+  if (input.style) form.append('style', input.style);
+  if (input.aiAssisted) form.append('aiAssisted', 'true');
   if (input.cropSlug) form.append('cropSlug', input.cropSlug);
   if (input.cropName) form.append('cropName', input.cropName);
   if (input.auctionDeadline) form.append('auctionDeadline', input.auctionDeadline);
@@ -53,6 +57,19 @@ export async function createPost(input: CreatePostInput): Promise<CommunityPostD
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 60_000,
   });
+  return data;
+}
+
+// 선택한 작물 일지(메모)를 AI가 블로그형 자랑글 초안으로 정리.
+// content 에는 사진 자리표시 [[사진]] 가 들어가고, imageIds 는 그 순서(시간순) 사진 id.
+export async function composeDraft(
+  cropSlug: string,
+): Promise<{ title: string; content: string; imageIds: number[] }> {
+  const { data } = await apiClient.post<{
+    title: string;
+    content: string;
+    imageIds: number[];
+  }>('/api/v1/community/compose-draft', { cropSlug }, { timeout: 60_000 });
   return data;
 }
 

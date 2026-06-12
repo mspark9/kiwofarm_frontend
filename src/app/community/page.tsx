@@ -12,6 +12,7 @@ import {
   Divider,
   FileButton,
   Group,
+  Loader,
   Modal,
   NumberInput,
   SegmentedControl,
@@ -40,12 +41,14 @@ import {
   IconPhoto,
   IconPlus,
   IconSeeding,
+  IconSparkles,
   IconTrash,
   IconUserCircle,
   IconX,
 } from '@tabler/icons-react';
 import {
   addComment,
+  composeDraft,
   createPost,
   deletePost,
   fetchPost,
@@ -122,6 +125,13 @@ function CommunityRoot() {
     queryFn: fetchWallet,
     enabled: loggedIn,
     staleTime: 15_000,
+  });
+  // 작물 태그 옵션(도감)을 피드 보는 동안 미리 받아둔다 — 글쓰기 모달이 열릴 때
+  // ComposerModal 이 같은 쿼리키로 캐시를 즉시 읽어 작물 태그가 바로 뜨도록.
+  useQuery({
+    queryKey: ['rewards', 'summary'],
+    queryFn: fetchRewardsSummary,
+    staleTime: 60_000,
   });
 
   return (
@@ -250,6 +260,202 @@ function CropBadge({ slug, name }: { slug?: string | null; name?: string | null 
   );
 }
 
+// AI 자동작성 표시 — 피드에서 돋보이게 그라데이션 + 반짝이 아이콘.
+function AiBadge() {
+  return (
+    <Badge
+      variant="gradient"
+      gradient={{ from: 'grape', to: 'violet', deg: 120 }}
+      radius="sm"
+      leftSection={<IconSparkles size={11} />}
+    >
+      AI 자동작성
+    </Badge>
+  );
+}
+
+// 자랑글 본문 사진 자리표시 — 백엔드 compose 마커와 동일.
+const PHOTO_MARKER = '[[사진]]';
+
+// 자랑글 AI 자동작성 1회 비용(백엔드 wallet.BRAG_COMPOSE_COST 와 일치).
+const BRAG_COMPOSE_COST = 100;
+
+// ───────────── 글 꾸미기 프리셋 (font|size|align) ─────────────
+type PostFont = 'gowun' | 'pretendard' | 'nanum';
+type PostSize = 'sm' | 'md' | 'lg';
+type PostAlign = 'left' | 'center';
+type PostStyle = { font: PostFont; size: PostSize; align: PostAlign };
+
+const DEFAULT_STYLE: PostStyle = { font: 'gowun', size: 'md', align: 'left' };
+
+const FONT_STACK: Record<PostFont, string> = {
+  gowun: "'Gowun Batang', 'Pretendard', serif",
+  pretendard: "'Pretendard', sans-serif",
+  nanum: "'Gaegu', 'Pretendard', cursive",
+};
+const FONT_LABEL: Record<PostFont, string> = {
+  gowun: '고운바탕',
+  pretendard: '프리텐다드',
+  nanum: '손글씨',
+};
+const FONT_PX: Record<PostSize, number> = { sm: 14, md: 15.5, lg: 18 };
+
+function parsePostStyle(raw?: string | null): PostStyle {
+  if (!raw) return DEFAULT_STYLE;
+  const [f, s, a] = raw.split('|');
+  return {
+    font: (['gowun', 'pretendard', 'nanum'] as const).includes(f as PostFont)
+      ? (f as PostFont)
+      : DEFAULT_STYLE.font,
+    size: (['sm', 'md', 'lg'] as const).includes(s as PostSize)
+      ? (s as PostSize)
+      : DEFAULT_STYLE.size,
+    align: (['left', 'center'] as const).includes(a as PostAlign)
+      ? (a as PostAlign)
+      : DEFAULT_STYLE.align,
+  };
+}
+
+function styleVars(s: PostStyle): React.CSSProperties {
+  return {
+    ['--kw-font' as string]: FONT_STACK[s.font],
+    ['--kw-size' as string]: `${FONT_PX[s.size]}px`,
+    ['--kw-align' as string]: s.align,
+  };
+}
+
+// 본문 문단(빈 줄 구분)을 매거진 본문 스타일로.
+function ArticleParagraphs({ text }: { text: string }) {
+  const paras = text
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  return (
+    <>
+      {paras.map((p, i) => (
+        <p key={i} className="kw-article-body" style={{ whiteSpace: 'pre-line' }}>
+          {p}
+        </p>
+      ))}
+    </>
+  );
+}
+
+// 폴라로이드풍 프레임 사진.
+function FramedPhoto({ img }: { img: MemoImage }) {
+  return (
+    <Box my="md" style={{ display: 'flex', justifyContent: 'center' }}>
+      <a
+        href={mediaUrl(img.url)}
+        target="_blank"
+        rel="noreferrer"
+        style={{ maxWidth: '100%' }}
+      >
+        <Box
+          style={{
+            background: 'white',
+            padding: 8,
+            borderRadius: 16,
+            border: '1px solid var(--mantine-color-gray-2)',
+            boxShadow: '0 8px 24px rgba(34,84,52,0.12)',
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={mediaUrl(img.url)}
+            alt={img.originalName ?? '사진'}
+            style={{
+              display: 'block',
+              maxWidth: '100%',
+              maxHeight: 440,
+              borderRadius: 10,
+              objectFit: 'cover',
+            }}
+          />
+        </Box>
+      </a>
+    </Box>
+  );
+}
+
+// 자랑글 매거진 렌더 — 본문 [[사진]] 자리에 프레임 사진을 끼우고, 남는 사진은 그리드로.
+// 마커가 없으면(직접 쓴 글) 본문 + 사진 그리드(기존과 동일).
+function ArticleBody({
+  title,
+  content,
+  images,
+  style,
+}: {
+  title?: string | null;
+  content: string;
+  images: MemoImage[];
+  style?: string | null;
+}) {
+  const segments = content.split(PHOTO_MARKER);
+  const markerCount = segments.length - 1;
+  const inline = images.slice(0, markerCount);
+  const rest = images.slice(markerCount);
+  return (
+    <Box className="kw-article" style={styleVars(parsePostStyle(style))}>
+      <style jsx global>{`
+        .kw-article-title {
+          font-family: var(--kw-font, 'Gowun Batang', 'Pretendard', serif);
+          text-align: var(--kw-align, left);
+          font-size: 23px;
+          font-weight: 700;
+          line-height: 1.35;
+          margin: 2px 0 14px;
+          background: linear-gradient(
+            120deg,
+            var(--mantine-color-green-7),
+            var(--mantine-color-teal-6) 70%
+          );
+          -webkit-background-clip: text;
+          background-clip: text;
+          -webkit-text-fill-color: transparent;
+        }
+        .kw-article-body {
+          font-family: var(--kw-font, 'Gowun Batang', 'Pretendard', serif);
+          font-size: var(--kw-size, 15.5px);
+          text-align: var(--kw-align, left);
+          line-height: 1.95;
+          color: var(--mantine-color-gray-8);
+          margin: 0 0 14px;
+        }
+      `}</style>
+      {title && (
+        <h3 className="kw-article-title">{title}</h3>
+      )}
+      {segments.map((seg, i) => (
+        <Box key={i}>
+          {seg.trim() && <ArticleParagraphs text={seg} />}
+          {i < markerCount && inline[i] && <FramedPhoto img={inline[i]} />}
+        </Box>
+      ))}
+      {rest.length > 0 && (
+        <SimpleGrid cols={{ base: 2, sm: 3 }} spacing={8} mt="sm">
+          {rest.map((img) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <a key={img.id} href={mediaUrl(img.url)} target="_blank" rel="noreferrer">
+              <img
+                src={mediaUrl(img.url)}
+                alt={img.originalName ?? '사진'}
+                style={{
+                  width: '100%',
+                  aspectRatio: '1 / 1',
+                  objectFit: 'cover',
+                  borderRadius: 10,
+                  border: '1px solid var(--mantine-color-gray-2)',
+                }}
+              />
+            </a>
+          ))}
+        </SimpleGrid>
+      )}
+    </Box>
+  );
+}
+
 function ImageStrip({ images, max = 4 }: { images: MemoImage[]; max?: number }) {
   if (!images.length) return null;
 
@@ -360,9 +566,10 @@ function PostCard({ post, onOpen }: { post: CommunityPostListItem; onOpen: () =>
           </Group>
         </Group>
 
-        {post.cropName && (
+        {(post.cropName || post.aiAssisted) && (
           <Group gap={6}>
             <CropBadge slug={post.cropSlug} name={post.cropName} />
+            {post.aiAssisted && <AiBadge />}
           </Group>
         )}
 
@@ -425,10 +632,16 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
   const [isGuest, setIsGuest] = useState(true);
   const [type, setType] = useState<PostType>('show');
   const [cropSlug, setCropSlug] = useState<string | null>(null);
+  const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [pickedMemoIds, setPickedMemoIds] = useState<number[]>([]);
   const [deadline, setDeadline] = useState<Date | null>(null);
+  // 글 꾸미기 프리셋(글꼴·크기·정렬) — 본문 미리보기와 저장·렌더에 함께 적용.
+  const [font, setFont] = useState<PostFont>(DEFAULT_STYLE.font);
+  const [size, setSize] = useState<PostSize>(DEFAULT_STYLE.size);
+  const [align, setAlign] = useState<PostAlign>(DEFAULT_STYLE.align);
+  const [aiUsed, setAiUsed] = useState(false); // AI 자동작성을 한 번이라도 썼는지.
 
   // 열릴 때 닉네임 프리필 + 폼 초기화.
   useEffect(() => {
@@ -439,9 +652,14 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
       setType('show');
       setDeadline(null);
       setCropSlug(null);
+      setTitle('');
       setContent('');
       setFiles([]);
       setPickedMemoIds([]);
+      setFont(DEFAULT_STYLE.font);
+      setSize(DEFAULT_STYLE.size);
+      setAlign(DEFAULT_STYLE.align);
+      setAiUsed(false);
     }
   }, [opened]);
 
@@ -469,12 +687,43 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
     [journal.data],
   );
 
+  // 선택한 작물 일지(메모)를 AI가 블로그형 초안으로 정리 + 일지 사진 자동 첨부.
+  const compose = useMutation({
+    mutationFn: () => composeDraft(cropSlug!),
+    onSuccess: (res) => {
+      setContent(res.content);
+      setTitle(res.title);
+      // 본문 [[사진]] 순서와 맞춘 시간순 사진 id 로 첨부.
+      setPickedMemoIds(res.imageIds);
+      setAiUsed(true); // 게시 시 'AI 자동작성' 뱃지로 표시.
+      // 팜 차감됐으니 지갑·보상 요약 갱신.
+      qc.invalidateQueries({ queryKey: ['community', 'wallet'] });
+      qc.invalidateQueries({ queryKey: ['rewards', 'summary'] });
+      notifications.show({
+        color: 'green',
+        message: `AI가 일지로 초안을 작성했어요(${BRAG_COMPOSE_COST}팜 사용). 확인하고 다듬어 올려보세요.`,
+      });
+    },
+    onError: (e) => {
+      notifications.show({
+        color: 'red',
+        message:
+          isAxiosError(e) && typeof e.response?.data?.detail === 'string'
+            ? e.response.data.detail
+            : 'AI 자동 작성에 실패했어요.',
+      });
+    },
+  });
+
   const create = useMutation({
     mutationFn: () =>
       createPost({
         content,
+        title: title.trim() || undefined,
         authorName: nickname.trim() || '텃밭러',
         postType: type,
+        style: `${font}|${size}|${align}`,
+        aiAssisted: aiUsed,
         cropSlug,
         cropName,
         files,
@@ -537,7 +786,13 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
 
         <Select
           label="작물 태그 (선택)"
-          placeholder={collected.length ? '내 도감에서 선택' : '수집한 작물이 없어요'}
+          placeholder={
+            summary.isLoading
+              ? '작물 불러오는 중…'
+              : collected.length
+                ? '내 도감에서 선택'
+                : '수집한 작물이 없어요'
+          }
           data={collected.map((e) => ({ value: e.cropSlug, label: e.cropName }))}
           value={cropSlug}
           onChange={(v) => {
@@ -546,11 +801,82 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
           }}
           clearable
           searchable
-          disabled={!collected.length}
+          rightSection={summary.isLoading ? <Loader size="xs" /> : undefined}
+          disabled={summary.isLoading || !collected.length}
         />
+
+        {type === 'show' && (
+          <TextInput
+            label="제목 (선택)"
+            placeholder="자랑글 제목 (AI 자동 작성 시 채워져요)"
+            maxLength={255}
+            value={title}
+            onChange={(e) => setTitle(e.currentTarget.value)}
+          />
+        )}
+
+        {type === 'show' && cropSlug && (journal.data?.totalMemos ?? 0) > 0 && (
+          <Button
+            variant="light"
+            color="grape"
+            size="xs"
+            leftSection={<IconSparkles size={14} />}
+            loading={compose.isPending}
+            onClick={() => compose.mutate()}
+            style={{ alignSelf: 'flex-start' }}
+          >
+            AI로 일지 정리해서 자동 작성 · {BRAG_COMPOSE_COST}팜
+          </Button>
+        )}
+
+        {/* 글 꾸미기 — 글꼴·크기·정렬. 본문 미리보기와 게시 후 렌더에 그대로 적용. */}
+        <Box>
+          <Text fw={600} size="sm" mb={6}>
+            글 꾸미기
+          </Text>
+          <Group gap="xs" wrap="wrap">
+            <Select
+              size="xs"
+              w={130}
+              aria-label="글꼴"
+              data={(['gowun', 'pretendard', 'nanum'] as PostFont[]).map((f) => ({
+                value: f,
+                label: FONT_LABEL[f],
+              }))}
+              value={font}
+              onChange={(v) => v && setFont(v as PostFont)}
+              allowDeselect={false}
+              comboboxProps={{ withinPortal: true }}
+            />
+            <SegmentedControl
+              size="xs"
+              value={size}
+              onChange={(v) => setSize(v as PostSize)}
+              data={[
+                { label: '작게', value: 'sm' },
+                { label: '보통', value: 'md' },
+                { label: '크게', value: 'lg' },
+              ]}
+            />
+            <SegmentedControl
+              size="xs"
+              value={align}
+              onChange={(v) => setAlign(v as PostAlign)}
+              data={[
+                { label: '왼쪽', value: 'left' },
+                { label: '가운데', value: 'center' },
+              ]}
+            />
+          </Group>
+        </Box>
 
         <Textarea
           label="내용"
+          description={
+            content.includes('[[사진]]')
+              ? '본문의 [[사진]] 자리에 첨부 사진이 순서대로 들어가요. 위치를 옮겨도 돼요.'
+              : undefined
+          }
           placeholder={
             type === 'share'
               ? '나눔할 작물과 수량, 나눔 방법을 적어주세요.'
@@ -561,6 +887,14 @@ function ComposerModal({ opened, onClose }: { opened: boolean; onClose: () => vo
           maxRows={8}
           value={content}
           onChange={(e) => setContent(e.currentTarget.value)}
+          styles={{
+            input: {
+              fontFamily: FONT_STACK[font],
+              fontSize: FONT_PX[size],
+              textAlign: align,
+              lineHeight: 1.9,
+            },
+          }}
         />
 
         {type === 'share' &&
@@ -759,6 +1093,7 @@ function DetailBody({
       <Group justify="space-between">
         <Group gap={6}>
           {post.cropName && <CropBadge slug={post.cropSlug} name={post.cropName} />}
+          {post.aiAssisted && <AiBadge />}
           <Text c="dimmed" size="xs">
             {fmtWhen(post.createdAt)}
           </Text>
@@ -772,31 +1107,12 @@ function DetailBody({
         )}
       </Group>
 
-      {post.title && <Title order={4}>{post.title}</Title>}
-      <Text size="sm" c="gray.8" style={{ whiteSpace: 'pre-line' }} lh={1.7}>
-        {post.content}
-      </Text>
-
-      {post.images.length > 0 && (
-        <SimpleGrid cols={{ base: 2, sm: 3 }} spacing={8}>
-          {post.images.map((img) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <a key={img.id} href={mediaUrl(img.url)} target="_blank" rel="noreferrer">
-              <img
-                src={mediaUrl(img.url)}
-                alt={img.originalName ?? '수확 사진'}
-                style={{
-                  width: '100%',
-                  aspectRatio: '1 / 1',
-                  objectFit: 'cover',
-                  borderRadius: 8,
-                  border: '1px solid var(--mantine-color-gray-2)',
-                }}
-              />
-            </a>
-          ))}
-        </SimpleGrid>
-      )}
+      <ArticleBody
+        title={post.title}
+        content={post.content}
+        images={post.images}
+        style={post.style}
+      />
 
       {/* 좋아요 */}
       <Group gap="lg">

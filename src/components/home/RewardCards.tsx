@@ -20,7 +20,7 @@ import { notifications } from '@mantine/notifications';
 import { IconCalendarCheck } from '@tabler/icons-react';
 import { isAxiosError } from 'axios';
 import { checkInAttendance } from '@/lib/api/rewards';
-import type { AttendanceOut, PointsOut } from '@/lib/types';
+import type { AttendanceOut, PointsOut, RewardsSummary } from '@/lib/types';
 
 /** 출석 보상 — 연속 20일 사이클 그리드 + 오늘 출석 버튼. */
 export function AttendanceCard({
@@ -34,10 +34,26 @@ export function AttendanceCard({
   const claim = useMutation({
     mutationFn: checkInAttendance,
     onSuccess: (res) => {
-      // 도감·홈 두 곳의 summary 캐시 키가 달라 둘 다 무효화한다.
-      qc.invalidateQueries({ queryKey: ['rewards-summary'] });
-      qc.invalidateQueries({ queryKey: ['rewards', 'summary'] });
+      // check-in 응답으로 홈 summary 캐시를 즉시 패치 — 무거운 /rewards/summary
+      // 전체 재요청을 기다리지 않고 카드를 바로 갱신한다.
+      qc.setQueryData<RewardsSummary>(['rewards-summary'], (old) =>
+        old
+          ? {
+              ...old,
+              attendance: {
+                ...old.attendance,
+                checkedToday: true,
+                streak: res.streak,
+                cycleDay: res.cycleDay,
+                total: res.total,
+              },
+              points: { ...old.points, total: res.total },
+            }
+          : old,
+      );
+      // 지갑·도감 캐시는 다음 진입 때 갱신(백그라운드, 카드 표시를 막지 않음).
       qc.invalidateQueries({ queryKey: ['community', 'wallet'] });
+      qc.invalidateQueries({ queryKey: ['rewards', 'summary'] });
       notifications.show({
         color: 'green',
         message: `${res.cycleDay}일차 출석 · +${res.reward}팜 (누적 ${res.total.toLocaleString()}팜)`,
