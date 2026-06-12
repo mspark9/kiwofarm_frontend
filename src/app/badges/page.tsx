@@ -25,6 +25,7 @@ import { notifications } from "@mantine/notifications";
 import { isAxiosError } from "axios";
 import { IconArrowLeft, IconAward } from "@tabler/icons-react";
 import { claimBadge, fetchBadges } from "@/lib/api/rewards";
+import { BadgeIcon } from "@/components/badges/BadgeIcon";
 import type { BadgeOut } from "@/lib/types";
 
 const DIFFICULTY_LABEL: Record<number, string> = {
@@ -201,13 +202,7 @@ function BadgeCard({ badge, onOpen }: { badge: BadgeOut; onOpen: () => void }) {
       }}
     >
       <Group gap="md" align="flex-start" wrap="nowrap">
-        <Text
-          fz={36}
-          lh={1}
-          style={{ filter: badge.achieved ? "none" : "grayscale(1)" }}
-        >
-          {badge.emoji}
-        </Text>
+        <BadgeIcon src={badge.emoji} size={48} grayscale={!badge.achieved} />
         <Box style={{ flex: 1 }}>
           <Group justify="space-between" align="center" wrap="nowrap">
             <Text fw={700}>{badge.name}</Text>
@@ -280,13 +275,7 @@ function BadgeModal({
     >
       {badge && (
         <Stack gap="md" align="center">
-          <Text
-            fz={64}
-            lh={1}
-            style={{ filter: badge.achieved ? "none" : "grayscale(1)" }}
-          >
-            {badge.emoji}
-          </Text>
+          <BadgeIcon src={badge.emoji} size={84} grayscale={!badge.achieved} />
           <Stack gap={6} align="center">
             <Text fw={800} fz={20}>
               {badge.name}
