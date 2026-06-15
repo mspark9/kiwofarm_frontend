@@ -2555,8 +2555,14 @@ function LogActionButton({
 }) {
   const [open, setOpen] = useState(false);
   const [custom, setCustom] = useState('');
+  // 반복 루틴(관수·생육 점검 등)은 같은 제목이 여러 번 — 날짜차 대신 '오늘 기록'으로 표기.
+  const recurringTitles = (() => {
+    const cnt = new Map<string, number>();
+    for (const t of plan.tasks) cnt.set(t.title, (cnt.get(t.title) ?? 0) + 1);
+    return new Set([...cnt].filter(([, n]) => n > 1).map(([k]) => k));
+  })();
   const pending = (() => {
-    const seen = new Set<string>(); // 같은 제목 중복 제거(예: 관수가 두 번)
+    const seen = new Set<string>(); // 같은 제목 중복 제거(예: 관수가 여러 번)
     return plan.tasks
       .filter((t) => t.status === 'planned' || t.status === 'delayed')
       .filter((t) => (seen.has(t.title) ? false : (seen.add(t.title), true)))
@@ -2571,7 +2577,7 @@ function LogActionButton({
       setOpen(false);
       notifications.show({
         color: 'green',
-        message: '작업을 기록했어요. 이후 일정도 맞춰 정비됐어요.',
+        message: '작업을 기록했어요.',
       });
     },
     onError: () =>
@@ -2626,7 +2632,7 @@ function LogActionButton({
             ) : (
               <Stack gap={6}>
                 {pending.map((t) => {
-                  const isPeriod = t.durationDays > 1;
+                  const isPeriod = t.durationDays > 1 || recurringTitles.has(t.title);
                   const diff = dayjs(dateKey).diff(dayjs(t.date), 'day');
                   const note = isPeriod
                     ? '오늘 기록'
@@ -2635,14 +2641,32 @@ function LogActionButton({
                       : diff < 0
                         ? `${-diff}일 빠름`
                         : `${diff}일 늦음`;
+                  // 반복 작업(관수 등)은 대표 1개만 보이므로, 실제로는 선택일에 가장 가까운
+                  // occurrence 를 기록한다(엉뚱한 먼 날짜가 완료 처리되는 문제 방지).
+                  let logId = t.id;
+                  if (isPeriod) {
+                    let bestDiff = Infinity;
+                    for (const x of plan.tasks) {
+                      if (
+                        x.title !== t.title ||
+                        (x.status !== 'planned' && x.status !== 'delayed')
+                      )
+                        continue;
+                      const d = Math.abs(dayjs(dateKey).diff(dayjs(x.date), 'day'));
+                      if (d < bestDiff) {
+                        bestDiff = d;
+                        logId = x.id;
+                      }
+                    }
+                  }
                   return (
                     <Button
                       key={t.id}
                       variant="default"
                       justify="space-between"
                       disabled={busy}
-                      loading={logMut.isPending && logMut.variables === t.id}
-                      onClick={() => logMut.mutate(t.id)}
+                      loading={logMut.isPending && logMut.variables === logId}
+                      onClick={() => logMut.mutate(logId)}
                       rightSection={
                         <Text size="xs" c="dimmed">
                           {note}
