@@ -10,6 +10,7 @@ import {
   Button,
   Card,
   Group,
+  Progress,
   SimpleGrid,
   Skeleton,
   Text,
@@ -17,12 +18,12 @@ import {
   Title,
 } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { IconCalendarCheck } from '@tabler/icons-react';
+import { IconCalendarCheck, IconFlame } from '@tabler/icons-react';
 import { isAxiosError } from 'axios';
 import { checkInAttendance } from '@/lib/api/rewards';
 import type { AttendanceOut, PointsOut, RewardsSummary } from '@/lib/types';
 
-/** 출석 보상 — 연속 20일 사이클 그리드 + 오늘 출석 버튼. */
+/** 출석 보상 — 이번 달 누적 20일 목표(주 보상) + 연속 마일스톤 + 오늘 출석 버튼. */
 export function AttendanceCard({
   attendance,
   loading,
@@ -44,7 +45,10 @@ export function AttendanceCard({
                 ...old.attendance,
                 checkedToday: true,
                 streak: res.streak,
-                cycleDay: res.cycleDay,
+                monthDays: res.monthDays,
+                monthAchieved:
+                  old.attendance.monthAchieved ||
+                  res.monthDays >= old.attendance.monthTarget,
                 total: res.total,
               },
               points: { ...old.points, total: res.total },
@@ -54,9 +58,13 @@ export function AttendanceCard({
       // 지갑·도감 캐시는 다음 진입 때 갱신(백그라운드, 카드 표시를 막지 않음).
       qc.invalidateQueries({ queryKey: ['community', 'wallet'] });
       qc.invalidateQueries({ queryKey: ['rewards', 'summary'] });
+      const bonusMsg =
+        res.bonusReward > 0
+          ? ` · 보너스 +${res.bonusReward}팜 (${res.bonuses.map((b) => b.label).join(', ')})`
+          : '';
       notifications.show({
         color: 'green',
-        message: `${res.cycleDay}일차 출석 · +${res.reward}팜 (누적 ${res.total.toLocaleString()}팜)`,
+        message: `출석 완료 · +${res.reward}팜${bonusMsg} (누적 ${res.total.toLocaleString()}팜)`,
       });
     },
     onError: (e) => {
@@ -67,6 +75,10 @@ export function AttendanceCard({
       notifications.show({ color: 'orange', message: detail });
     },
   });
+
+  const monthPct = attendance
+    ? Math.min(100, (attendance.monthDays / attendance.monthTarget) * 100)
+    : 0;
 
   return (
     <Card radius="lg" p="lg" withBorder bg="white">
@@ -79,8 +91,8 @@ export function AttendanceCard({
             출석 보상
           </Text>
         </Group>
-        {attendance && (
-          <Badge variant="light" color="orange" radius="sm">
+        {attendance && attendance.streak > 0 && (
+          <Badge variant="light" color="orange" radius="sm" leftSection={<IconFlame size={11} />}>
             {attendance.streak}일 연속
           </Badge>
         )}
@@ -90,49 +102,56 @@ export function AttendanceCard({
         <Skeleton height={150} mt={8} />
       ) : (
         <>
-          <SimpleGrid cols={5} spacing={6} mt={8}>
-            {attendance.rewards.map((reward, i) => {
-              const day = i + 1;
-              const completed = attendance.checkedToday
-                ? attendance.cycleDay
-                : attendance.cycleDay - 1;
-              const done = day <= completed;
-              const isToday = day === attendance.cycleDay && !attendance.checkedToday;
-              const milestone = reward !== 10;
-              return (
-                <Box
-                  key={day}
-                  ta="center"
-                  py={6}
-                  style={{
-                    borderRadius: 8,
-                    border: `1px solid ${
-                      isToday
-                        ? 'var(--mantine-color-orange-5)'
-                        : 'var(--mantine-color-gray-2)'
-                    }`,
-                    background: done
-                      ? 'var(--mantine-color-green-0)'
-                      : milestone
-                        ? 'var(--mantine-color-orange-0)'
-                        : 'white',
-                    opacity: done ? 0.6 : 1,
-                  }}
-                >
-                  <Text fz={9} c="dimmed" fw={600}>
-                    {day}일
-                  </Text>
-                  <Text
-                    size="xs"
-                    fw={milestone ? 800 : 600}
-                    c={done ? 'green.7' : milestone ? 'orange.7' : 'gray.7'}
-                  >
-                    {done ? '✓' : reward}
-                  </Text>
-                </Box>
-              );
-            })}
+          {/* 이번 달 누적 출석(주 보상) */}
+          <Group justify="space-between" mt={10} mb={4}>
+            <Text size="sm" fw={700}>
+              이번 달 출석
+            </Text>
+            <Text size="sm" fw={700} c={attendance.monthAchieved ? 'green.7' : 'orange.7'}>
+              {attendance.monthDays} / {attendance.monthTarget}일
+            </Text>
+          </Group>
+          <Progress
+            value={monthPct}
+            color={attendance.monthAchieved ? 'green' : 'orange'}
+            radius="xl"
+            size="md"
+          />
+          <Text size="xs" c="dimmed" mt={4}>
+            {attendance.monthAchieved
+              ? `이번 달 ${attendance.monthTarget}일 출석 달성 · +${attendance.monthBonus}팜 보너스`
+              : `${attendance.monthTarget}일 채우면 +${attendance.monthBonus}팜 보너스`}
+          </Text>
+
+          {/* 연속 출석 마일스톤(별도 보상) */}
+          <SimpleGrid cols={3} spacing={6} mt={12}>
+            {attendance.milestones.map((m) => (
+              <Box
+                key={m.days}
+                ta="center"
+                py={6}
+                style={{
+                  borderRadius: 8,
+                  border: `1px solid ${
+                    m.reached
+                      ? 'var(--mantine-color-green-3)'
+                      : 'var(--mantine-color-gray-2)'
+                  }`,
+                  background: m.reached
+                    ? 'var(--mantine-color-green-0)'
+                    : 'white',
+                }}
+              >
+                <Text fz={10} c="dimmed" fw={600}>
+                  {m.days}일 연속
+                </Text>
+                <Text size="xs" fw={800} c={m.reached ? 'green.7' : 'orange.7'}>
+                  {m.reached ? '✓' : `+${m.reward}`}
+                </Text>
+              </Box>
+            ))}
           </SimpleGrid>
+
           <Button
             mt="md"
             fullWidth
@@ -145,7 +164,7 @@ export function AttendanceCard({
           >
             {attendance.checkedToday
               ? '오늘 출석 완료'
-              : `오늘 출석하고 ${attendance.todayReward}팜 받기`}
+              : `오늘 출석하고 ${attendance.dailyReward}팜 받기`}
           </Button>
         </>
       )}
