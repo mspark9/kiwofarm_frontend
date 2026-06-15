@@ -481,20 +481,38 @@ export interface PointsOut {
   harvestCount: number;
 }
 
+export interface AttendanceMilestone {
+  days: number; // 연속 일수 목표(7·14·30)
+  reward: number; // 달성 보너스 팜
+  reached: boolean; // 역대 최고 연속으로 달성(스티키)
+}
+
 export interface AttendanceOut {
   checkedToday: boolean;
+  dailyReward: number; // 매일 출석 기본 팜
   streak: number; // 현재 연속 출석 일수
-  cycleDay: number; // 오늘 해당 1~20 사이클 일차(미출석이면 출석 시 받을 일차)
-  todayReward: number;
-  cycleDays: number; // 사이클 길이(20)
-  rewards: number[]; // 길이 20 일차별 보상표
+  best: number; // 역대 최고 연속
+  monthDays: number; // 이번 달(달력 월) 출석 일수
+  monthTarget: number; // 월간 보너스 목표(20)
+  monthBonus: number; // 월간 달성 보너스 팜
+  monthAchieved: boolean; // 이번 달 목표 달성/지급 완료
+  monthBest: number; // 역대 한 달 최다 출석
+  milestones: AttendanceMilestone[];
   total: number;
 }
 
-export interface AttendanceClaim {
-  cycleDay: number;
+export interface AttendanceBonus {
+  type: 'month' | 'streak';
+  label: string;
   reward: number;
+}
+
+export interface AttendanceClaim {
+  reward: number; // 일일 기본 팜
+  bonusReward: number; // 이번 출석으로 추가로 받은 보너스 합
+  bonuses: AttendanceBonus[]; // 새로 달성한 보너스(연출용)
   streak: number;
+  monthDays: number;
   total: number;
 }
 // (도감 페이지에서 RewardsSummary.attendance 로 소비)
