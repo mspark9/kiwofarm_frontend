@@ -2320,12 +2320,24 @@ function DayPanel({
       }
       return false;
     };
-    return plan.tasks
+    const inWeek = plan.tasks
       .filter((t) => t.status !== 'skipped') // 건너뛴 작업은 주간 할 일에서 제외
       .filter((t) => t.date <= we && t.endDate >= weekStartKey)
       .filter((t) => t.durationDays <= 1 || hasVisitDay(t.date, t.endDate))
       .slice()
       .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.order - b.order));
+    // 같은 제목(관수 등 반복 작업)은 한 번만 노출. 그 주에 아직 안 한 게 있으면
+    // 예정(미완료) 쪽을 대표로 둬 '할 일'로 남긴다(전부 끝나야 완료 표시).
+    const byTitle = new Map<string, FarmTask>();
+    for (const t of inWeek) {
+      const prev = byTitle.get(t.title);
+      if (!prev || (prev.status === 'done' && t.status !== 'done')) {
+        byTitle.set(t.title, t);
+      }
+    }
+    return [...byTitle.values()].sort((a, b) =>
+      a.date < b.date ? -1 : a.date > b.date ? 1 : a.order - b.order,
+    );
   }, [plan.tasks, plan.visitDays, weekStartKey]);
   // 작업별 코칭 멘트(서버 생성, 주 단위 캐시) → id로 매핑. 완료 상태는 plan(weekTasks)에서 실시간.
   const messageById = useMemo(() => {
@@ -2483,16 +2495,6 @@ function DayPanel({
                         c={done ? 'gray.5' : `${CATEGORY_META[t.category].color}.7`}
                       >
                         {CATEGORY_META[t.category].label}
-                      </Text>
-                      <Text span size="xs" c="dimmed">
-                        {dayjs(t.date).format('M.D')}({KOR_WEEKDAYS[dayjs(t.date).day()]})
-                        {t.endDate && t.endDate !== t.date && (
-                          <>
-                            {' ~ '}
-                            {dayjs(t.endDate).format('M.D')}(
-                            {KOR_WEEKDAYS[dayjs(t.endDate).day()]})
-                          </>
-                        )}
                       </Text>
                     </Group>
                     <Text size="sm" c={done ? 'dimmed' : undefined}>
