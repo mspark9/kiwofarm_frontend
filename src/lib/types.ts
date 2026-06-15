@@ -1,109 +1,9 @@
 // Single source of truth for shared domain types.
 // Backend Pydantic schemas in `backend/app/schemas/` must stay structurally aligned with this file.
 
-import type { CropId } from './constants';
-
-// ───────────── Mode & onboarding ─────────────
-
-export type Mode = 'returning' | 'weekend';
+// ───────────── 면적 단위 (farmplan·calendar 공용) ─────────────
 
 export type AreaUnit = 'pyeong' | 'sqm' | 'hectare';
-export type FacilityType = 'open_field' | 'vinyl_house' | 'smart_farm';
-export type VisitFrequency = 'weekly_1' | 'weekly_2' | 'biweekly' | 'monthly';
-
-export interface OnboardingInput {
-  mode: Mode;
-  region: string;
-  province?: string;
-  area: number;
-  areaUnit: AreaUnit;
-  laborCount: number;
-  preferredCrops: string[];
-  // returning-only
-  budgetManwon?: number;
-  facility?: FacilityType;
-  // weekend-only — 방문 예정 요일 (0=일 ~ 6=토). 주당 방문 횟수가 관리 가능 빈도.
-  visitDays?: number[];
-}
-
-// ───────────── Crop recommendation ─────────────
-
-export type CropPhase = 'rest' | 'seeding' | 'growing' | 'harvest';
-
-export interface CalendarMonth {
-  month: number;
-  phase: CropPhase;
-}
-
-export type Difficulty = 1 | 2 | 3 | 4 | 5;
-export type CropColor = 'red' | 'orange' | 'indigo';
-
-export interface CropRecommendation {
-  cropId: CropId | string;
-  name: string;
-  emoji: string;
-  matchScore: number;
-  difficulty: Difficulty;
-  expectedRevenueManwon: number;
-  expectedNetManwon: number;
-  expectedYieldKg: number;
-  expectedDirectPriceWon: number;
-  llmReason: string;
-  tags: string[];
-  calendar: CalendarMonth[];
-  peerFarms: number;
-  peerAgreeRate: number;
-  color: CropColor;
-  tier?: 'premium' | 'standard';
-  peerEvidence?: string | null;
-  revenueBasis?: string | null;
-}
-
-// ───────────── Digital twin ─────────────
-
-export type AlertType = 'pest' | 'price' | 'weather' | 'labor';
-export type Severity = 'low' | 'medium' | 'high';
-
-export interface MonthlyPoint {
-  month: string;
-  monthNum: number;
-  revenueManwon: number;
-  laborHours: number;
-  phase: CropPhase;
-}
-
-export interface CrisisAlert {
-  month: number;
-  type: AlertType;
-  title: string;
-  detail: string;
-  severity: Severity;
-}
-
-export interface TwinData {
-  cropId: CropId | string;
-  name: string;
-  emoji: string;
-  totalRevenueManwon: number;
-  totalCostManwon: number;
-  totalLaborHours: number;
-  peakLaborMonth: number;
-  monthly: MonthlyPoint[];
-  alerts: CrisisAlert[];
-  aiCoach: string;
-}
-
-// ───────────── KAMIS crop search ─────────────
-
-export interface CropOption {
-  group_code: string;
-  group_name: string;
-  item_code: string;
-  item_name: string;
-  kind_code: string;
-  kind_name: string;
-  label: string;
-}
 
 // ───────────── 작목 카탈로그 (농사로 (신)작목별농업기술정보 / cropEbook) ─────────────
 // 캘린더 작물 검색 소스. cropEbook 카테고리 트리의 소분류(=작목).
@@ -497,6 +397,8 @@ export interface AttendanceOut {
   monthBonus: number; // 월간 달성 보너스 팜
   monthAchieved: boolean; // 이번 달 목표 달성/지급 완료
   monthBest: number; // 역대 한 달 최다 출석
+  monthAttendedDays: number[]; // 이번 달 출석한 날짜(일) 목록
+  todayDay: number; // KST 오늘 날짜(일)
   milestones: AttendanceMilestone[];
   total: number;
 }

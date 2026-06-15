@@ -10,7 +10,6 @@ import {
   Button,
   Card,
   Group,
-  Progress,
   SimpleGrid,
   Skeleton,
   Text,
@@ -23,7 +22,85 @@ import { isAxiosError } from 'axios';
 import { checkInAttendance } from '@/lib/api/rewards';
 import type { AttendanceOut, PointsOut, RewardsSummary } from '@/lib/types';
 
-/** 출석 보상 — 이번 달 누적 20일 목표(주 보상) + 연속 마일스톤 + 오늘 출석 버튼. */
+const KOR_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+
+/** 이번 달 달력 — 출석한 날은 채워서, 오늘은 테두리로 강조. */
+function MonthAttendanceGrid({
+  attendedDays,
+  todayDay,
+  achieved,
+}: {
+  attendedDays: number[];
+  todayDay: number;
+  achieved: boolean;
+}) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth(); // 0-based
+  const daysInMonth = new Date(y, m + 1, 0).getDate();
+  const firstWeekday = new Date(y, m, 1).getDay(); // 0=일
+  const attended = new Set(attendedDays);
+  const cells: (number | null)[] = [
+    ...Array(firstWeekday).fill(null),
+    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+  ];
+  const fill = achieved
+    ? 'var(--mantine-color-green-6)'
+    : 'var(--mantine-color-orange-5)';
+
+  return (
+    <Box mt={8}>
+      <SimpleGrid cols={7} spacing={4} mb={4}>
+        {KOR_WEEKDAYS.map((w, i) => (
+          <Text
+            key={w}
+            ta="center"
+            fz={9}
+            fw={700}
+            c={i === 0 ? 'red.4' : i === 6 ? 'blue.4' : 'dimmed'}
+          >
+            {w}
+          </Text>
+        ))}
+      </SimpleGrid>
+      <SimpleGrid cols={7} spacing={4}>
+        {cells.map((d, idx) => {
+          if (d === null) return <Box key={`e${idx}`} />;
+          const isAttended = attended.has(d);
+          const isToday = d === todayDay;
+          const isFuture = d > todayDay;
+          return (
+            <Box
+              key={d}
+              style={{
+                aspectRatio: '1',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 8,
+                fontSize: 11,
+                fontWeight: isAttended ? 800 : 500,
+                color: isAttended
+                  ? 'white'
+                  : isFuture
+                    ? 'var(--mantine-color-gray-4)'
+                    : 'var(--mantine-color-gray-7)',
+                background: isAttended ? fill : 'var(--mantine-color-gray-0)',
+                border: isToday
+                  ? '2px solid var(--mantine-color-orange-6)'
+                  : '2px solid transparent',
+              }}
+            >
+              {d}
+            </Box>
+          );
+        })}
+      </SimpleGrid>
+    </Box>
+  );
+}
+
+/** 출석 보상 — 이번 달 달력 + 연속 마일스톤 + 오늘 출석 버튼. */
 export function AttendanceCard({
   attendance,
   loading,
@@ -49,6 +126,11 @@ export function AttendanceCard({
                 monthAchieved:
                   old.attendance.monthAchieved ||
                   res.monthDays >= old.attendance.monthTarget,
+                monthAttendedDays: old.attendance.monthAttendedDays.includes(
+                  old.attendance.todayDay,
+                )
+                  ? old.attendance.monthAttendedDays
+                  : [...old.attendance.monthAttendedDays, old.attendance.todayDay],
                 total: res.total,
               },
               points: { ...old.points, total: res.total },
@@ -75,10 +157,6 @@ export function AttendanceCard({
       notifications.show({ color: 'orange', message: detail });
     },
   });
-
-  const monthPct = attendance
-    ? Math.min(100, (attendance.monthDays / attendance.monthTarget) * 100)
-    : 0;
 
   return (
     <Card radius="lg" p="lg" withBorder bg="white">
@@ -111,13 +189,12 @@ export function AttendanceCard({
               {attendance.monthDays} / {attendance.monthTarget}일
             </Text>
           </Group>
-          <Progress
-            value={monthPct}
-            color={attendance.monthAchieved ? 'green' : 'orange'}
-            radius="xl"
-            size="md"
+          <MonthAttendanceGrid
+            attendedDays={attendance.monthAttendedDays}
+            todayDay={attendance.todayDay}
+            achieved={attendance.monthAchieved}
           />
-          <Text size="xs" c="dimmed" mt={4}>
+          <Text size="xs" c="dimmed" mt={6}>
             {attendance.monthAchieved
               ? `이번 달 ${attendance.monthTarget}일 출석 달성 · +${attendance.monthBonus}팜 보너스`
               : `${attendance.monthTarget}일 채우면 +${attendance.monthBonus}팜 보너스`}

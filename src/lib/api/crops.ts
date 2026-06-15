@@ -1,19 +1,9 @@
 import { apiClient } from './client';
 import type {
   CropCatalogItem,
-  CropOption,
   CropSummary,
   CultivationGuide,
 } from '@/lib/types';
-
-export async function searchCrops(q: string, limit = 10): Promise<CropOption[]> {
-  const trimmed = q.trim();
-  if (!trimmed) return [];
-  const { data } = await apiClient.get<CropOption[]>('/api/v1/crops/search', {
-    params: { q: trimmed, limit },
-  });
-  return data;
-}
 
 // 40종 마스터(crops_master) 작물 검색 — 캘린더 작물 선택용.
 // code 가 슬러그라 계획 생성·수확 인증이 도감 40종과 그대로 일치한다. 로컬 조회라 즉시 응답.
