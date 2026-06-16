@@ -21,7 +21,6 @@ import {
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useMediaQuery } from '@mantine/hooks';
-import { DatePickerInput } from '@mantine/dates';
 import dayjs from 'dayjs';
 import {
   IconArrowLeft,
@@ -54,6 +53,7 @@ import {
   savePlantingInput,
 } from '@/lib/planting/storage';
 import { RegionPicker } from '@/components/shared/RegionPicker';
+import { KwDatePicker } from '@/components/shared/KwDatePicker';
 import { getAddress } from '@/lib/auth';
 
 // 0=일 ~ 6=토. 표시는 월~일 순. 방문 예정 요일 선택용.
@@ -66,7 +66,6 @@ const WEEKDAYS: { v: number; l: string }[] = [
   { v: 6, l: '토' },
   { v: 0, l: '일' },
 ];
-const KOR_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 // 매일(월~일). 방문 요일 기본값.
 const ALL_DAYS = [1, 2, 3, 4, 5, 6, 0];
@@ -273,15 +272,8 @@ export default function PlantingWizardPage() {
               </FieldRow>
 
               <FieldRow icon={<IconClock size={16} />} label="시작 시점">
-                <DatePickerInput
+                <KwDatePicker
                   placeholder="재배 시작일 선택 (비우면 오늘 기준)"
-                  valueFormat="YYYY년 M월 D일"
-                  firstDayOfWeek={1}
-                  monthLabelFormat="YYYY년 M월"
-                  yearLabelFormat="YYYY년"
-                  monthsListFormat="M월"
-                  clearable
-                  weekdayFormat={(date) => KOR_WEEKDAYS[date.getDay()]}
                   value={form.values.startDate ? dayjs(form.values.startDate).toDate() : null}
                   onChange={(v) =>
                     form.setFieldValue('startDate', v ? dayjs(v).format('YYYY-MM-DD') : null)

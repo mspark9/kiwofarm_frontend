@@ -291,6 +291,8 @@ function CalendarGridStyles() {
       }
       .kw-cal .mantine-Calendar-calendarHeader {
         max-width: 100%;
+        /* 화살표 컨트롤과 'YYYY년 M월' 라벨의 세로 중앙 정렬 (기본 stretch 보정) */
+        align-items: center;
       }
       /* 헤더 라벨(2026년 6월) 가운데 정렬 */
       .kw-cal .mantine-Calendar-calendarHeaderLevel {
@@ -800,14 +802,20 @@ function AllCalendar({
   selected: Date | null;
   onSelect: (d: Date) => void;
 }) {
+  const [pickerMode, setPickerMode] = useState<'months' | 'years' | null>(null);
   return (
-    <Card radius="lg" p="lg" withBorder bg="white">
+    <Card radius="lg" p="sm" withBorder bg="white" style={{ overflow: 'visible' }}>
       <CalendarGridStyles />
-      <Box mih={{ base: 380, md: 610 }} w="100%">
+      <Box mih={{ base: 380, md: 610 }} w="100%" pos="relative">
         <Calendar
           className="kw-cal"
           date={month ?? undefined}
           onDateChange={onMonthChange}
+          level="month"
+          onLevelChange={(lv) => {
+            if (lv === 'year') setPickerMode('months');
+            else if (lv === 'decade') setPickerMode('years');
+          }}
           minDate={new Date(MIN_YEAR, 0, 1)}
           size="xl"
           firstDayOfWeek={1}
@@ -815,6 +823,9 @@ function AllCalendar({
           monthLabelFormat="YYYY년 M월"
           yearLabelFormat="YYYY년"
           monthsListFormat="M월"
+          decadeLabelFormat={(start, end) =>
+            `${dayjs(start).format('YYYY')} - ${dayjs(end).format('YYYY')}`
+          }
           style={{ '--day-size': '3rem', width: '100%' } as CSSProperties}
           getDayProps={(date) => ({
             onClick: () => {
@@ -898,6 +909,13 @@ function AllCalendar({
               </Stack>
             );
           }}
+        />
+        <CalendarLevelOverlay
+          month={month}
+          pickerMode={pickerMode}
+          setPickerMode={setPickerMode}
+          onMonthChange={onMonthChange}
+          onSelect={onSelect}
         />
       </Box>
       <Group gap="md" mt="md" justify="center" wrap="wrap">
@@ -1854,7 +1872,8 @@ function MonthGrid({
             color="dark"
             fullWidth
             h={{ base: 36, sm: 48 }}
-            fz={{ base: 'sm', sm: 'md' }}
+            fz="sm"
+            fw={400}
             onClick={() => onPickMonth(m)}
           >
             {m + 1}월
@@ -1920,7 +1939,8 @@ function DecadeYearGrid({
               c={outside ? 'dimmed' : undefined}
               fullWidth
               h={{ base: 36, sm: 48 }}
-              fz={{ base: 'sm', sm: 'md' }}
+              fz="sm"
+              fw={400}
               onClick={() => (outside ? onMoveDecade(y) : onPickYear(y))}
             >
               {y}
@@ -1928,6 +1948,86 @@ function DecadeYearGrid({
           );
         })}
       </SimpleGrid>
+    </Box>
+  );
+}
+
+// 연/월 선택 오버레이 — 캘린더 위에 떠서 월·연도 그리드를 보여준다. 모든 캘린더 공용.
+// 부모 Box 에 pos="relative" 필요.
+function CalendarLevelOverlay({
+  month,
+  pickerMode,
+  setPickerMode,
+  onMonthChange,
+  onSelect,
+}: {
+  month: Date | null;
+  pickerMode: 'months' | 'years' | null;
+  setPickerMode: (m: 'months' | 'years' | null) => void;
+  onMonthChange: (d: Date | null) => void;
+  onSelect: (d: Date) => void;
+}) {
+  if (!pickerMode) return null;
+  const goToday = () => {
+    const today = new Date();
+    onMonthChange(today);
+    onSelect(today);
+    setPickerMode(null);
+  };
+  return (
+    // 캘린더 위에 드롭다운처럼 표시. 바깥 Card 의 overflow:hidden 을 풀어둬서
+    // 캘린더보다 넓게 펼쳐도 우측이 잘리지 않는다. 모바일은 뷰포트 폭으로 캡.
+    <Box
+      pos="absolute"
+      inset={0}
+      onClick={() => setPickerMode(null)}
+      style={{
+        zIndex: 50,
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'center',
+        paddingTop: 8,
+      }}
+    >
+      <Card
+        withBorder
+        shadow="lg"
+        radius="md"
+        bg="white"
+        p="sm"
+        w={{ base: 360, md: 520 }}
+        maw="calc(100vw - 24px)"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Group justify="space-between" mb="sm">
+          <Button size="compact-sm" variant="light" color="green" onClick={goToday}>
+            오늘
+          </Button>
+          <Button size="compact-xs" variant="subtle" color="gray" onClick={() => setPickerMode(null)}>
+            닫기
+          </Button>
+        </Group>
+        {pickerMode === 'months' ? (
+          <MonthGrid
+            baseDate={month ?? new Date()}
+            onChangeYear={(y) => onMonthChange(new Date(y, month ? dayjs(month).month() : 0, 1))}
+            onOpenYears={() => setPickerMode('years')}
+            onPickMonth={(m) => {
+              onMonthChange(new Date(month ? dayjs(month).year() : new Date().getFullYear(), m, 1));
+              setPickerMode(null);
+            }}
+          />
+        ) : (
+          <DecadeYearGrid
+            baseDate={month ?? new Date()}
+            onMoveDecade={(y) => onMonthChange(new Date(y, 0, 1))}
+            onPickYear={(y) => {
+              onMonthChange(new Date(y, month ? dayjs(month).month() : 0, 1));
+              setPickerMode('months');
+            }}
+          />
+        )}
+      </Card>
     </Box>
   );
 }
@@ -1946,12 +2046,6 @@ function PlanCalendar({
   onSelect: (d: Date) => void;
 }) {
   const [pickerMode, setPickerMode] = useState<'months' | 'years' | null>(null);
-  const goToday = () => {
-    const today = new Date();
-    onMonthChange(today);
-    onSelect(today);
-    setPickerMode(null);
-  };
   const { barsByDate, laneCount } = useMemo(() => computeBars(plan), [plan]);
   const dotsByDate = useMemo(() => singleDayDots(plan), [plan]);
   const memoDates = useMemo(
@@ -1973,7 +2067,7 @@ function PlanCalendar({
   const visitDaySet = useMemo(() => new Set(plan.visitDays ?? []), [plan.visitDays]);
 
   return (
-    <Card radius="lg" p="lg" withBorder bg="white" data-tour="calendar">
+    <Card radius="lg" p="sm" withBorder bg="white" data-tour="calendar" style={{ overflow: 'visible' }}>
       <CalendarGridStyles />
       {/* 6주 기준 높이 예약(+여백) — 5주인 달은 아래가 여백, 달이 바뀌어도 카드 높이 일정 */}
       <Box mih={{ base: 380, md: 610 }} w="100%" pos="relative">
@@ -1993,6 +2087,9 @@ function PlanCalendar({
         monthLabelFormat="YYYY년 M월"
         yearLabelFormat="YYYY년"
         monthsListFormat="M월"
+        decadeLabelFormat={(start, end) =>
+          `${dayjs(start).format('YYYY')} - ${dayjs(end).format('YYYY')}`
+        }
         style={{ '--day-size': '3rem', width: '100%' } as CSSProperties}
         getDayProps={(date) => ({
           onClick: () => {
@@ -2111,66 +2208,13 @@ function PlanCalendar({
           );
         }}
       />
-      {pickerMode && (
-        <Box
-          pos="absolute"
-          inset={0}
-          onClick={() => setPickerMode(null)}
-          style={{
-            zIndex: 5,
-            display: 'flex',
-            alignItems: 'flex-start',
-            justifyContent: 'center',
-            paddingTop: 8,
-          }}
-        >
-          <Card
-            withBorder
-            shadow="md"
-            radius="md"
-            bg="white"
-            p="md"
-            w={{ base: '94%', md: 520 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-          <Group justify="space-between" mb="sm">
-            <Button size="compact-sm" variant="light" color="green" onClick={goToday}>
-              오늘
-            </Button>
-            <Button
-              size="compact-xs"
-              variant="subtle"
-              color="gray"
-              onClick={() => setPickerMode(null)}
-            >
-              닫기
-            </Button>
-          </Group>
-          {pickerMode === 'months' ? (
-            <MonthGrid
-              baseDate={month ?? new Date()}
-              onChangeYear={(y) =>
-                onMonthChange(new Date(y, month ? dayjs(month).month() : 0, 1))
-              }
-              onOpenYears={() => setPickerMode('years')}
-              onPickMonth={(m) => {
-                onMonthChange(new Date(month ? dayjs(month).year() : new Date().getFullYear(), m, 1));
-                setPickerMode(null);
-              }}
-            />
-          ) : (
-            <DecadeYearGrid
-              baseDate={month ?? new Date()}
-              onMoveDecade={(y) => onMonthChange(new Date(y, 0, 1))}
-              onPickYear={(y) => {
-                onMonthChange(new Date(y, month ? dayjs(month).month() : 0, 1));
-                setPickerMode('months');
-              }}
-            />
-          )}
-          </Card>
-        </Box>
-      )}
+      <CalendarLevelOverlay
+        month={month}
+        pickerMode={pickerMode}
+        setPickerMode={setPickerMode}
+        onMonthChange={onMonthChange}
+        onSelect={onSelect}
+      />
       </Box>
       <Group gap="md" mt="md" justify="center" wrap="wrap">
         {(Object.keys(CATEGORY_META) as TaskCategory[]).map((c) => (
