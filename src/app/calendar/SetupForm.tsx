@@ -30,7 +30,6 @@ import {
   Title,
   UnstyledButton,
 } from '@mantine/core';
-import { DatePickerInput } from '@mantine/dates';
 import { useDebouncedValue } from '@mantine/hooks';
 import { notifications } from '@mantine/notifications';
 import {
@@ -46,6 +45,7 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import dayjs from 'dayjs';
+import { KwDatePicker } from '@/components/shared/KwDatePicker';
 import { searchCropMaster } from '@/lib/api/crops';
 import { isAxiosError } from 'axios';
 import { createPlan, createPlansBatch } from '@/lib/api/farmplan';
@@ -89,7 +89,6 @@ const WEEKDAYS: { v: number; l: string }[] = [
 const WEEKDAY_LABEL: Record<number, string> = Object.fromEntries(
   WEEKDAYS.map((w) => [w.v, w.l]),
 );
-const KOR_WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 // 재배 방식·장소 — 맥락 인지 일정 생성(이중 이식·노지 작업 방지)에 쓰인다.
 type CultivationMethod = 'direct' | 'seedling' | 'germinate';
@@ -461,16 +460,6 @@ export function SetupForm({ tabs }: { tabs?: ReactNode }) {
 
           <Card radius="lg" p="lg" withBorder bg="white">
             <Stack gap="md">
-              <style jsx global>{`
-                /* 시작일 선택 팝오버 달력: 토=파랑, 일=빨강 (월화수목금토일 순서) */
-                .mantine-DatePickerInput-weekday:nth-of-type(6) {
-                  color: var(--mantine-color-blue-6);
-                }
-                .mantine-DatePickerInput-weekday:last-of-type {
-                  color: var(--mantine-color-red-6);
-                }
-              `}</style>
-
               {queue.length > 0 && (
                 <Stack gap={8}>
                   <Text size="sm" fw={700}>
@@ -722,22 +711,11 @@ function CropDetailFields({
         />
       </Box>
 
-      <DatePickerInput
+      <KwDatePicker
         label="시작 날짜"
         placeholder="재배 시작일 선택"
-        valueFormat="YYYY년 M월 D일"
         withAsterisk
-        firstDayOfWeek={1}
-        monthLabelFormat="YYYY년 M월"
-        yearLabelFormat="YYYY년"
-        monthsListFormat="M월"
-        weekdayFormat={(date) => KOR_WEEKDAYS[date.getDay()]}
-        getDayProps={(date) => {
-          const wd = dayjs(date).day(); // 0=일 ~ 6=토
-          if (wd === 6) return { style: { color: 'var(--mantine-color-blue-6)' } };
-          if (wd === 0) return { style: { color: 'var(--mantine-color-red-6)' } };
-          return {};
-        }}
+        clearable={false}
         value={values.startDate}
         onChange={(v) => onChange({ startDate: v })}
       />
