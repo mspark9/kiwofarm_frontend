@@ -4,6 +4,7 @@ import styles from './page.module.css';
 import { HomeCta } from '@/components/home/HomeCta';
 import { GuestOnly, HomeHeroSwitch } from '@/components/home/HomeBranch';
 import { SiteFooter } from '@/components/home/SiteFooter';
+import { FeatureCarousel } from '@/components/home/FeatureCarousel';
 import {
   Badge,
   Box,
@@ -19,9 +20,6 @@ import {
   Title,
 } from '@mantine/core';
 import {
-  IconArrowUpRight,
-  IconAward,
-  IconBook2,
   IconCalendarEvent,
   IconDatabase,
   IconLeaf,
@@ -30,7 +28,6 @@ import {
   IconPhoto,
   IconShieldCheck,
   IconSparkles,
-  IconUsersGroup,
 } from '@tabler/icons-react';
 
 export default function HomePage() {
@@ -528,73 +525,6 @@ function MiniCalendar() {
   );
 }
 
-const FEATURES: {
-  icon: ReactNode;
-  title: string;
-  desc: string;
-  tag: string;
-  color: string;
-  href: string;
-  disabled?: boolean;
-}[] = [
-  {
-    icon: <IconLeaf size={22} />,
-    title: '작목 추천',
-    desc: '지역·장소·일조로 지금 심기 좋은 작목 가려내기',
-    tag: '농사로 데이터 · AI 설명',
-    color: 'green',
-    href: '/planting',
-  },
-  {
-    icon: <IconMessageCircle size={22} />,
-    title: '챗봇 상담',
-    desc: '작목·재배 궁금증을 AI 챗봇에게 바로 물어보기',
-    tag: 'RAG 챗봇 상담',
-    color: 'teal',
-    href: '/planting/chat',
-  },
-  {
-    icon: <IconBook2 size={22} />,
-    title: '재배 정보',
-    desc: '작목 검색 → 농사로 길잡이 + GPT 키포인트 + PDF',
-    tag: '농사로 · 작목별농업기술정보',
-    color: 'grape',
-    href: '/cultivation',
-  },
-  {
-    icon: <IconCalendarEvent size={22} />,
-    title: '텃밭 캘린더',
-    desc: '날짜별 농사 계획 · 작업 일정 자동 생성',
-    tag: '농사 계획 빌더',
-    color: 'lime',
-    href: '/calendar',
-  },
-  {
-    icon: <IconBook2 size={22} />,
-    title: '작물 도감',
-    desc: '수확 인증으로 도감을 채워 나가기',
-    tag: '도감 컬렉션',
-    color: 'orange',
-    href: '/collection',
-  },
-  {
-    icon: <IconAward size={22} />,
-    title: '뱃지 도감',
-    desc: '연속 기록·활동으로 뱃지 모으기',
-    tag: '뱃지 · Streak',
-    color: 'yellow',
-    href: '/badges',
-  },
-  {
-    icon: <IconUsersGroup size={22} />,
-    title: '커뮤니티',
-    desc: '주말 직거래·이웃 나눔으로 작물 주고받기',
-    tag: '직거래 · 나눔',
-    color: 'cyan',
-    href: '/community',
-  },
-];
-
 function Features() {
   return (
     <Box
@@ -622,103 +552,9 @@ function Features() {
             추천부터 캘린더까지, 1년 사이클 어디에 있든 바로 이어서 작업할 수 있어요.
           </Text>
         </Stack>
-        <SimpleGrid cols={{ base: 1, xs: 2, sm: 3, md: 4 }} spacing="lg">
-          {FEATURES.map((f) => (
-            <FeatureCard key={f.title} {...f} />
-          ))}
-        </SimpleGrid>
+        <FeatureCarousel />
       </Container>
     </Box>
-  );
-}
-
-function FeatureCard({
-  icon,
-  title,
-  desc,
-  tag,
-  color,
-  href,
-  disabled,
-}: {
-  icon: ReactNode;
-  title: string;
-  desc: string;
-  tag: string;
-  color: string;
-  href: string;
-  disabled?: boolean;
-}) {
-  const baseStyle = {
-    borderColor: 'var(--mantine-color-gray-2)',
-    background: 'white',
-    textDecoration: 'none',
-    color: 'inherit',
-    transition: 'transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease',
-  };
-
-  const inner = (
-    <Stack gap="md" h="100%">
-      <Group justify="space-between" align="flex-start">
-        <ThemeIcon size={48} radius="md" variant="light" color={color}>
-          {icon}
-        </ThemeIcon>
-        {disabled ? (
-          <Badge size="xs" color="gray" variant="light" radius="sm">
-            준비 중
-          </Badge>
-        ) : (
-          <IconArrowUpRight size={16} color="var(--mantine-color-gray-5)" />
-        )}
-      </Group>
-      <Box>
-        <Title order={5} mb={6} fz={17}>
-          {title}
-        </Title>
-        <Text size="sm" c="dimmed" lh={1.6}>
-          {desc}
-        </Text>
-      </Box>
-      <Badge
-        variant="light"
-        color={color}
-        radius="sm"
-        size="sm"
-        mt="auto"
-        style={{ alignSelf: 'flex-start' }}
-      >
-        {tag}
-      </Badge>
-    </Stack>
-  );
-
-  if (disabled) {
-    return (
-      <Card
-        radius="lg"
-        p="lg"
-        withBorder
-        h="100%"
-        style={{ ...baseStyle, opacity: 0.5, cursor: 'default' }}
-      >
-        {inner}
-      </Card>
-    );
-  }
-
-  return (
-    <Card
-      component={Link}
-      href={href}
-      radius="lg"
-      p="lg"
-      withBorder
-      h="100%"
-      className="kw-feature-card"
-      style={baseStyle}
-    >
-      {inner}
-    </Card>
   );
 }
 
