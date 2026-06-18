@@ -10,6 +10,8 @@ import {
   Box,
   Card,
   Group,
+  SimpleGrid,
+  Skeleton,
   Stack,
   Text,
   ThemeIcon,
@@ -109,6 +111,12 @@ export function FeatureCarousel() {
   // 모바일(한 장만 보이는 폭)에서는 슬라이드 없이 세로로 일렬 나열
   const isMobile = perView === 1;
 
+  // useMediaQuery 는 마운트 후 effect 에서 실제 값을 읽으므로, 첫 렌더(SSR 포함)
+  // 에서는 항상 perView 1 로 잡힌다. 그대로 본문을 그리면 캐러셀이 잠깐 세로
+  // 일렬로 보였다가 바뀐다 → 마운트 전까지 스켈레톤으로 가린다
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   // 무한 순환
   const [start, setStart] = useState(0);
   const [animate, setAnimate] = useState(true);
@@ -128,6 +136,17 @@ export function FeatureCarousel() {
     const id = requestAnimationFrame(() => setAnimate(true));
     return () => cancelAnimationFrame(id);
   }, [animate]);
+
+  // 마운트 전: breakpoint별 개수는 CSS(SimpleGrid)로 맞춘 스켈레톤만 보여준다
+  if (!mounted) {
+    return (
+      <SimpleGrid cols={{ base: 1, xs: 2, sm: 3, md: 4 }} spacing="lg">
+        {Array.from({ length: MAX_PER_VIEW }, (_, i) => (
+          <FeatureSkeleton key={i} />
+        ))}
+      </SimpleGrid>
+    );
+  }
 
   if (isMobile) {
     return (
@@ -289,6 +308,29 @@ function FeatureCard({
       style={baseStyle}
     >
       {inner}
+    </Card>
+  );
+}
+
+// FeatureCard 와 같은 골격의 로딩 자리표시자
+function FeatureSkeleton() {
+  return (
+    <Card
+      radius="lg"
+      p="lg"
+      withBorder
+      h="100%"
+      style={{ borderColor: 'var(--mantine-color-gray-2)', background: 'white' }}
+    >
+      <Stack gap="md" h="100%">
+        <Skeleton h={48} w={48} radius="md" />
+        <Box>
+          <Skeleton h={18} w="55%" mb={10} radius="sm" />
+          <Skeleton h={10} mb={6} radius="sm" />
+          <Skeleton h={10} w="80%" radius="sm" />
+        </Box>
+        <Skeleton h={20} w={130} radius="sm" mt="auto" />
+      </Stack>
     </Card>
   );
 }
