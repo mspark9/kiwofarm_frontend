@@ -26,8 +26,11 @@ import {
   IconDatabase,
   IconLeaf,
   IconMessageCircle,
+  IconPencil,
+  IconPhoto,
   IconShieldCheck,
   IconSparkles,
+  IconUsersGroup,
 } from '@tabler/icons-react';
 
 export default function HomePage() {
@@ -412,44 +415,44 @@ const CROP_RECS: {
 
 // 텃밭 캘린더 예시 - 카테고리 색 점으로 단일 작업 표현
 const CAL_DOTS: Record<number, string[]> = {
+  1: ['red'],
   3: ['lime'],
-  6: ['red'],
-  27: ['teal'],
+  5: ['lime'],
+  11: ['red'],
+  16: ['red'],
+  26: ['orange'],
+  27: ['teal', 'red'],
   29: ['green'],
 };
-// 기간형 작업 - 겹치면 여러 줄로 표시
-const CAL_BARS: { start: number; end: number; color: string }[] = [
+// 기간형 작업 - 각 날짜에 점으로 표시(막대 대신)
+const CAL_PERIODS: { start: number; end: number; color: string }[] = [
   { start: 7, end: 10, color: 'green' }, // 정식 기간
   { start: 13, end: 16, color: 'teal' }, // 생육 관리
-  { start: 22, end: 26, color: 'orange' }, // 수확 기간
 ];
+// 청록색 점 추가 날짜.
+const CAL_DOT_DAYS = new Set([1, 2, 4, 6, 12, 18, 20, 23, 25, 26, 27]);
+// 메모 작성 / 사진 저장 표시 날짜.
+const CAL_MEMO_DAYS = new Set([1, 4, 6, 9, 11]);
+const CAL_PHOTO_DAYS = new Set([2, 13]);
 const CAL_LEAD = 2; // 26년 7월 (수)
 const CAL_SELECTED = 15;
-// 방문 요일(연한 초록 배경)
-const CAL_VISIT_WD = new Set([0, 3, 5]);
+// 방문 요일(연한 초록 배경): 월·수·목·토·일 (월요일 시작, 0=월 ~ 6=일)
+const CAL_VISIT_WD = new Set([0, 2, 3, 5, 6]);
 
 function MiniCalendar() {
   const cells: (number | null)[] = [
     ...Array.from({ length: CAL_LEAD }, () => null),
     ...Array.from({ length: 31 }, (_, i) => i + 1),
   ];
-  // 막대 레인 배치: 겹치는 기간은 다른 레인(줄)으로 쌓는다.
-  const sorted = [...CAL_BARS].sort((a, b) => a.start - b.start);
-  const laneEnds: number[] = [];
-  const laneOf = new Map<(typeof CAL_BARS)[number], number>();
-  for (const b of sorted) {
-    let lane = laneEnds.findIndex((e) => e < b.start);
-    if (lane === -1) {
-      lane = laneEnds.length;
-      laneEnds.push(b.end);
-    } else {
-      laneEnds[lane] = b.end;
+  // 날짜별 점 색 모음: 단일 작업 + 기간형 작업 + 청록 점 지정일. 같은 색은 1개로.
+  const dotsAt = (d: number): string[] => {
+    const colors = [...(CAL_DOTS[d] ?? [])];
+    for (const p of CAL_PERIODS) {
+      if (d >= p.start && d <= p.end) colors.push(p.color);
     }
-    laneOf.set(b, lane);
-  }
-  const laneCount = laneEnds.length;
-  const barAt = (d: number, lane: number) =>
-    CAL_BARS.find((b) => laneOf.get(b) === lane && d >= b.start && d <= b.end);
+    if (CAL_DOT_DAYS.has(d)) colors.push('teal');
+    return [...new Set(colors)].slice(0, 4);
+  };
   return (
     <Card radius="xl" p="md" withBorder shadow="lg" bg="white">
       <Group justify="space-between" align="center" mb={8}>
@@ -469,6 +472,8 @@ function MiniCalendar() {
         {cells.map((d, i) => {
           const selected = d === CAL_SELECTED;
           const visit = d != null && CAL_VISIT_WD.has(i % 7);
+          // 방문 요일(초록)인 날만 일정 점 표시.
+          const dots = d != null && visit ? dotsAt(d) : [];
           return (
             <Box
               key={i}
@@ -493,30 +498,9 @@ function MiniCalendar() {
                   {d}
                 </Text>
               )}
-              {d != null && laneCount > 0 && (
-                <Stack gap={1} mt={1} style={{ width: '100%' }}>
-                  {Array.from({ length: laneCount }, (_, lane) => {
-                    const b = barAt(d, lane);
-                    return (
-                      <Box
-                        key={lane}
-                        style={{
-                          width: '100%',
-                          height: 3,
-                          background: b ? `var(--mantine-color-${b.color}-5)` : 'transparent',
-                          borderTopLeftRadius: b && d === b.start ? 2 : 0,
-                          borderBottomLeftRadius: b && d === b.start ? 2 : 0,
-                          borderTopRightRadius: b && d === b.end ? 2 : 0,
-                          borderBottomRightRadius: b && d === b.end ? 2 : 0,
-                        }}
-                      />
-                    );
-                  })}
-                </Stack>
-              )}
-              {d && CAL_DOTS[d] && (
+              {dots.length > 0 && (
                 <Group gap={1} mt={1} justify="center">
-                  {CAL_DOTS[d].map((c, j) => (
+                  {dots.map((c, j) => (
                     <Box
                       key={j}
                       w={3}
@@ -524,6 +508,16 @@ function MiniCalendar() {
                       style={{ borderRadius: '50%', background: `var(--mantine-color-${c}-6)` }}
                     />
                   ))}
+                </Group>
+              )}
+              {d != null && (CAL_MEMO_DAYS.has(d) || CAL_PHOTO_DAYS.has(d)) && (
+                <Group gap={1} mt={1} justify="center" wrap="nowrap">
+                  {CAL_MEMO_DAYS.has(d) && (
+                    <IconPencil size={9} stroke={2.4} color="var(--mantine-color-grape-6)" />
+                  )}
+                  {CAL_PHOTO_DAYS.has(d) && (
+                    <IconPhoto size={9} stroke={2.2} color="var(--mantine-color-grape-6)" />
+                  )}
                 </Group>
               )}
             </Box>
@@ -545,7 +539,7 @@ const FEATURES: {
 }[] = [
   {
     icon: <IconLeaf size={22} />,
-    title: 'AI 작목 추천',
+    title: '작목 추천',
     desc: '지역·장소·일조로 지금 심기 좋은 작목 가려내기',
     tag: '농사로 데이터 · AI 설명',
     color: 'green',
@@ -576,12 +570,28 @@ const FEATURES: {
     href: '/calendar',
   },
   {
-    icon: <IconAward size={22} />,
+    icon: <IconBook2 size={22} />,
     title: '작물 도감',
-    desc: '수확 인증으로 도감 채우고 뱃지·연속 기록 모으기',
-    tag: '도감 · 뱃지 · Streak',
+    desc: '수확 인증으로 도감을 채워 나가기',
+    tag: '도감 컬렉션',
     color: 'orange',
     href: '/collection',
+  },
+  {
+    icon: <IconAward size={22} />,
+    title: '뱃지 도감',
+    desc: '연속 기록·활동으로 뱃지 모으기',
+    tag: '뱃지 · Streak',
+    color: 'yellow',
+    href: '/badges',
+  },
+  {
+    icon: <IconUsersGroup size={22} />,
+    title: '커뮤니티',
+    desc: '주말 직거래·이웃 나눔으로 작물 주고받기',
+    tag: '직거래 · 나눔',
+    color: 'cyan',
+    href: '/community',
   },
 ];
 
@@ -605,14 +615,14 @@ function Features() {
             농사 전 과정을 받쳐주는
             <br />
             <Text span inherit c="green.7">
-              핵심 기능 5가지
+              핵심 기능 7가지
             </Text>
           </Title>
           <Text c="dimmed" ta="center" maw={570} mt="xs">
             추천부터 캘린더까지, 1년 사이클 어디에 있든 바로 이어서 작업할 수 있어요.
           </Text>
         </Stack>
-        <SimpleGrid cols={{ base: 1, xs: 2, sm: 3, md: 5 }} spacing="lg">
+        <SimpleGrid cols={{ base: 1, xs: 2, sm: 3, md: 4 }} spacing="lg">
           {FEATURES.map((f) => (
             <FeatureCard key={f.title} {...f} />
           ))}
@@ -829,12 +839,12 @@ function FinalCTA() {
       <Container size="md" pos="relative">
         <Stack align="center" gap="lg">
           <Title order={2} ta="center" fz={{ base: 30, md: 44 }} fw={800} c="white" lh={1.2}>
-            5분이면 충분합니다.
+            막막한 첫 텃밭, 수확까지 함께
           </Title>
-          <Text ta="center" size="lg" maw={520} lh={1.65} style={{ color: 'rgba(255,255,255,0.88)' }}>
-            조건 몇 가지만 알려주시면 AI가 심기 좋은 작목과
+          <Text ta="center" size="lg" maw={540} lh={1.65} style={{ color: 'rgba(255,255,255,0.88)' }}>
+            베란다·주말농장이 처음이어도 막막하지 않게,
             <br />
-            1년 영농 계획을 만들어 드립니다.
+            농사로 공공데이터와 AI가 작목 추천부터 수확까지 함께합니다.
           </Text>
           <HomeCta variant="final" groupClassName={styles.ctaGroup} />
         </Stack>
