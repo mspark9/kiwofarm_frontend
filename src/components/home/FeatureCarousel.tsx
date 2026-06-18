@@ -117,11 +117,17 @@ export function FeatureCarousel() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  // 무한 순환
+  // 무한 순환. start 는 0..N 으로만 움직인다(Math.min 으로 상한 고정). start === N
+  // 은 맨 앞으로 되돌아온 복제 프레임([1234])이라, 슬라이드가 끝나면 애니메이션을
+  // 끄고 0 으로 순간 스냅한다. rAF/transitionend 대신 타이머로 처리한다 -
+  // 백그라운드 탭에선 rAF·transition 이벤트가 멈춰 start 가 범위를 벗어나기 때문.
   const [start, setStart] = useState(0);
   const [animate, setAnimate] = useState(true);
 
-  const autoplay = useInterval(() => setStart((s) => s + 1), AUTOPLAY_MS);
+  const autoplay = useInterval(
+    () => setStart((s) => Math.min(s + 1, N)),
+    AUTOPLAY_MS,
+  );
 
   useEffect(() => {
     if (isMobile) return;
@@ -130,11 +136,21 @@ export function FeatureCarousel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMobile]);
 
-  // 복제 프레임
+  // 복제 프레임([1234])까지 슬라이드한 뒤, 전환이 끝날 즈음 애니메이션 없이 0 으로.
+  useEffect(() => {
+    if (start < N) return;
+    const id = setTimeout(() => {
+      setAnimate(false);
+      setStart(0);
+    }, 550);
+    return () => clearTimeout(id);
+  }, [start]);
+
+  // 스냅 직후 다시 애니메이션을 켠다(위치 변화가 없어 시각적 점프 없음).
   useEffect(() => {
     if (animate) return;
-    const id = requestAnimationFrame(() => setAnimate(true));
-    return () => cancelAnimationFrame(id);
+    const id = setTimeout(() => setAnimate(true), 30);
+    return () => clearTimeout(id);
   }, [animate]);
 
   // 마운트 전: breakpoint별 개수는 CSS(SimpleGrid)로 맞춘 스켈레톤만 보여준다
@@ -166,14 +182,6 @@ export function FeatureCarousel() {
     <Box onMouseEnter={autoplay.stop} onMouseLeave={autoplay.start}>
       <Box style={{ overflow: 'hidden' }}>
         <Box
-          onTransitionEnd={(e) => {
-            // 자식 카드의 hover 전환이 버블링되므로 트랙 자신의 전환만 처리
-            if (e.target !== e.currentTarget) return;
-            if (start >= N) {
-              setAnimate(false);
-              setStart((s) => s - N);
-            }
-          }}
           style={{
             display: 'flex',
             transform: `translateX(-${start * slotPct}%)`,
